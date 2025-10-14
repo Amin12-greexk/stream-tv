@@ -68,7 +68,7 @@ model Playlist {
   id          String         @id @default(cuid())
   name        String         @unique
   items       PlaylistItem[]
-  assignments Assignment[]   // <-- back-relation for Assignment.playlist
+  assignments Assignment[]
   createdAt   DateTime       @default(now())
 }
 
@@ -87,17 +87,15 @@ model PlaylistItem {
 }
 
 model Assignment {
-  id         String       @id @default(cuid())
+  id         String          @id @default(cuid())
   groupId    String
-  group      DeviceGroup  @relation(fields: [groupId], references: [id])
-
+  group      DeviceGroup     @relation(fields: [groupId], references: [id])
   playlistId String
-  playlist   Playlist     @relation(fields: [playlistId], references: [id]) // needs back field on Playlist
-
-  startTime  String       // "HH:mm"
+  playlist   Playlist        @relation(fields: [playlistId], references: [id])
+  startTime  String          // "HH:mm"
   endTime    String
   priority   Int
-  createdAt  DateTime     @default(now())
+  createdAt  DateTime        @default(now())
 
   days       AssignmentDay[]
 
