@@ -1,0 +1,132 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  role      String   @default("admin")
+  createdAt DateTime @default(now())
+}
+
+model DeviceGroup {
+  id          String       @id @default(cuid())
+  name        String       @unique
+  devices     Device[]
+  assignments Assignment[]
+  createdAt   DateTime     @default(now())
+}
+
+model Device {
+  id         String       @id @default(cuid())
+  name       String
+  code       String       @unique
+  groupId    String?
+  group      DeviceGroup? @relation(fields: [groupId], references: [id])
+  lastSeen   DateTime?
+  playerVer  String?
+  createdAt  DateTime     @default(now())
+
+  playLogs   PlayLog[]
+
+  @@index([groupId])
+}
+
+model Media {
+  id            String        @id @default(cuid())
+  title         String
+  type          String        // "video" | "image"
+  filename      String
+  mime          String
+  duration      Int?          // seconds for video
+  sizeBytes     Int?
+  createdAt     DateTime      @default(now())
+
+  playlistItems PlaylistItem[]
+  playLogs      PlayLog[]
+  mediaTags     MediaTag[]
+}
+
+model MediaTag {
+  id      String @id @default(cuid())
+  mediaId String
+  media   Media  @relation(fields: [mediaId], references: [id])
+  tag     String
+
+  @@index([mediaId])
+  @@index([tag])
+}
+
+model Playlist {
+  id          String         @id @default(cuid())
+  name        String         @unique
+  items       PlaylistItem[]
+  assignments Assignment[]   // <-- back-relation for Assignment.playlist
+  createdAt   DateTime       @default(now())
+}
+
+model PlaylistItem {
+  id            String    @id @default(cuid())
+  playlistId    String
+  playlist      Playlist  @relation(fields: [playlistId], references: [id])
+  mediaId       String
+  media         Media     @relation(fields: [mediaId], references: [id])
+  order         Int
+  displayFit    String    // "contain" | "cover" | "stretch"
+  imageDuration Int?      // seconds for images
+
+  @@index([playlistId])
+  @@index([mediaId])
+}
+
+model Assignment {
+  id         String       @id @default(cuid())
+  groupId    String
+  group      DeviceGroup  @relation(fields: [groupId], references: [id])
+
+  playlistId String
+  playlist   Playlist     @relation(fields: [playlistId], references: [id]) // needs back field on Playlist
+
+  startTime  String       // "HH:mm"
+  endTime    String
+  priority   Int
+  createdAt  DateTime     @default(now())
+
+  days       AssignmentDay[]
+
+  @@index([groupId])
+  @@index([playlistId])
+}
+
+model AssignmentDay {
+  id           String     @id @default(cuid())
+  assignmentId String
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+  dayOfWeek    Int        // 0=Sun..6=Sat
+
+  @@index([assignmentId])
+  @@index([dayOfWeek])
+}
+
+model PlayLog {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id])
+  mediaId   String
+  media     Media    @relation(fields: [mediaId], references: [id])
+  startedAt DateTime
+  endedAt   DateTime?
+  status    String
+  notes     String?
+
+  @@index([deviceId])
+  @@index([mediaId])
+  @@index([startedAt])
+}
