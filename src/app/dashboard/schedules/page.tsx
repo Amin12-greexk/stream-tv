@@ -52,7 +52,7 @@ export default function SchedulesPage() {
   }
 
   async function loadPlaylists() {
-    const res = await fetch("/api/playlists", { cache: "no-store" });
+    const res = await fetch("/api/playlist", { cache: "no-store" });
     const data = await res.json();
     setPlaylists(data);
   }

@@ -23,16 +23,34 @@ export default function DashboardHome() {
     assignmentCount: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadStats() {
       try {
+        setError(null);
+        
+        // Fetch with proper error handling
+        const fetchWithErrorHandling = async (url: string) => {
+          const response = await fetch(url, { cache: "no-store" });
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${url}: ${response.status}`);
+          }
+          const text = await response.text();
+          try {
+            return JSON.parse(text);
+          } catch {
+            console.error(`Invalid JSON from ${url}:`, text.substring(0, 100));
+            return [];
+          }
+        };
+
         const [media, playlists, devices, groups, assignments] = await Promise.all([
-          fetch("/api/media").then(r => r.json()),
-          fetch("/api/playlists").then(r => r.json()),
-          fetch("/api/devices").then(r => r.json()),
-          fetch("/api/groups").then(r => r.json()),
-          fetch("/api/assignments").then(r => r.json()),
+          fetchWithErrorHandling("/api/media"),
+          fetchWithErrorHandling("/api/playlist"),
+          fetchWithErrorHandling("/api/devices"),
+          fetchWithErrorHandling("/api/groups"),
+          fetchWithErrorHandling("/api/assignments"),
         ]);
 
         const onlineCount = devices.filter((d: any) => {
@@ -51,13 +69,14 @@ export default function DashboardHome() {
         });
       } catch (error) {
         console.error("Failed to load stats:", error);
+        setError("Failed to load dashboard data. Please refresh the page.");
       } finally {
         setLoading(false);
       }
     }
 
     loadStats();
-    const interval = setInterval(loadStats, 30000); // Refresh every 30s
+    const interval = setInterval(loadStats, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -66,14 +85,14 @@ export default function DashboardHome() {
       title: "Media Files",
       value: stats.mediaCount,
       icon: "🎬",
-      color: "bg-blue-500",
+      color: "bg-green-500",
       link: "/dashboard/media",
     },
     {
       title: "Playlists",
       value: stats.playlistCount,
       icon: "📋",
-      color: "bg-purple-500",
+      color: "bg-green-600",
       link: "/dashboard/playlists",
     },
     {
@@ -81,21 +100,21 @@ export default function DashboardHome() {
       value: `${stats.onlineDevices}/${stats.deviceCount}`,
       subtitle: "online",
       icon: "📱",
-      color: "bg-green-500",
+      color: "bg-green-700",
       link: "/dashboard/devices",
     },
     {
       title: "Device Groups",
       value: stats.groupCount,
       icon: "👥",
-      color: "bg-orange-500",
+      color: "bg-emerald-500",
       link: "/dashboard/groups",
     },
     {
       title: "Active Schedules",
       value: stats.assignmentCount,
       icon: "⏰",
-      color: "bg-pink-500",
+      color: "bg-teal-500",
       link: "/dashboard/schedules",
     },
   ];
@@ -116,6 +135,23 @@ export default function DashboardHome() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold">Dashboard Overview</h2>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <p className="text-red-600 mb-4">❌ {error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -130,14 +166,14 @@ export default function DashboardHome() {
           <button
             key={card.title}
             onClick={() => router.push(card.link)}
-            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 text-left group"
+            className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 text-left group border-2 border-transparent hover:border-green-200"
           >
             <div className="flex items-start justify-between mb-4">
-              <div className={`${card.color} w-12 h-12 rounded-lg flex items-center justify-center text-2xl`}>
+              <div className={`${card.color} w-12 h-12 rounded-lg flex items-center justify-center text-2xl shadow-md`}>
                 {card.icon}
               </div>
               <svg
-                className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors"
+                className="w-5 h-5 text-gray-400 group-hover:text-green-600 transition-colors"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -147,7 +183,7 @@ export default function DashboardHome() {
             </div>
             <div>
               <p className="text-gray-600 text-sm font-medium">{card.title}</p>
-              <p className="text-3xl font-bold mt-1">
+              <p className="text-3xl font-bold mt-1 text-gray-900">
                 {card.value}
                 {card.subtitle && <span className="text-sm text-gray-500 ml-2">{card.subtitle}</span>}
               </p>
@@ -157,59 +193,65 @@ export default function DashboardHome() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">🚀 Quick Start Guide</h3>
+        <div className="bg-white rounded-lg shadow p-6 border-2 border-green-100">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <span>🚀</span>
+            <span>Quick Start Guide</span>
+          </h3>
           <ol className="space-y-3 text-sm">
             <li className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+              <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold">
                 1
               </span>
               <div>
-                <strong>Upload Media</strong>
+                <strong className="text-gray-900">Upload Media</strong>
                 <p className="text-gray-600">Add images and videos to your library</p>
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+              <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold">
                 2
               </span>
               <div>
-                <strong>Create Playlist</strong>
+                <strong className="text-gray-900">Create Playlist</strong>
                 <p className="text-gray-600">Organize media into playlists</p>
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+              <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold">
                 3
               </span>
               <div>
-                <strong>Register Devices</strong>
+                <strong className="text-gray-900">Register Devices</strong>
                 <p className="text-gray-600">Add your TV displays</p>
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+              <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold">
                 4
               </span>
               <div>
-                <strong>Create Schedule</strong>
+                <strong className="text-gray-900">Create Schedule</strong>
                 <p className="text-gray-600">Assign playlists to devices with time slots</p>
               </div>
             </li>
             <li className="flex items-start gap-3">
-              <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
+              <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-xs font-bold">
                 5
               </span>
               <div>
-                <strong>Open Player</strong>
+                <strong className="text-gray-900">Open Player</strong>
                 <p className="text-gray-600">Launch player page on your TV displays</p>
               </div>
             </li>
           </ol>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold mb-4">📊 System Status</h3>
+        <div className="bg-white rounded-lg shadow p-6 border-2 border-green-100">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <span>📊</span>
+            <span>System Status</span>
+          </h3>
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Devices Online</span>
@@ -224,7 +266,7 @@ export default function DashboardHome() {
                     }}
                   ></div>
                 </div>
-                <span className="text-sm font-medium">
+                <span className="text-sm font-medium text-green-600">
                   {stats.deviceCount > 0
                     ? Math.round((stats.onlineDevices / stats.deviceCount) * 100)
                     : 0}%
@@ -234,17 +276,17 @@ export default function DashboardHome() {
 
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Total Media Files</span>
-              <span className="font-medium">{stats.mediaCount}</span>
+              <span className="font-medium text-gray-900">{stats.mediaCount}</span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Active Schedules</span>
-              <span className="font-medium">{stats.assignmentCount}</span>
+              <span className="font-medium text-gray-900">{stats.assignmentCount}</span>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-gray-600">Playlists Created</span>
-              <span className="font-medium">{stats.playlistCount}</span>
+              <span className="font-medium text-gray-900">{stats.playlistCount}</span>
             </div>
 
             {stats.deviceCount === 0 && (
@@ -254,7 +296,7 @@ export default function DashboardHome() {
             )}
 
             {stats.mediaCount === 0 && (
-              <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+              <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded text-sm text-green-800">
                 💡 Upload some media files to start creating content!
               </div>
             )}
