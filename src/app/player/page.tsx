@@ -26,12 +26,18 @@ export default function PlayerPage() {
   const [volume, setVolume] = useState(1);
   const [isPlaying, setIsPlaying] = useState(true);
   const [remoteControlEnabled, setRemoteControlEnabled] = useState(true);
-  
+
   const etagRef = useRef<string | null>(null);
   const retryCountRef = useRef(0);
+  const failCountRef = useRef(0); // (7) track kegagalan per siklus
+
   const videoRef = useRef<HTMLVideoElement>(null);
-  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null); // (5) fullscreen ke container
+
+  // (1) tipe timer aman DOM
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const imageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const maxRetries = 3;
 
   useEffect(() => {
@@ -42,110 +48,119 @@ export default function PlayerPage() {
   }, []);
 
   // Remote command execution
-  const executeCommand = useCallback((cmd: RemoteCommand) => {
-    console.log("Executing remote command:", cmd);
-    
-    switch (cmd.command) {
-      case "play":
-        if (videoRef.current && !isPlaying) {
-          videoRef.current.play().catch(console.error);
-          setIsPlaying(true);
-        }
-        break;
-        
-      case "pause":
-        if (videoRef.current && isPlaying) {
-          videoRef.current.pause();
-          setIsPlaying(false);
-        }
-        break;
-        
-      case "stop":
-        if (videoRef.current) {
-          videoRef.current.pause();
-          videoRef.current.currentTime = 0;
-          setIsPlaying(false);
-        }
-        break;
-        
-      case "next":
-        setIdx((i) => (i + 1) % items.length);
-        break;
-        
-      case "previous":
-        setIdx((i) => (i - 1 + items.length) % items.length);
-        break;
-        
-      case "goto":
-        if (cmd.params?.index !== undefined) {
-          const newIdx = parseInt(cmd.params.index);
-          if (newIdx >= 0 && newIdx < items.length) {
-            setIdx(newIdx);
+  const executeCommand = useCallback(
+    (cmd: RemoteCommand) => {
+      console.log("Executing remote command:", cmd);
+
+      switch (cmd.command) {
+        case "play":
+          if (videoRef.current && !isPlaying) {
+            videoRef.current
+              .play()
+              .catch(() => {
+                // (4) fallback autoplay: paksa mute lalu play
+                videoRef.current!.muted = true;
+                return videoRef.current!.play();
+              })
+              .catch(console.error);
+            setIsPlaying(true);
           }
-        }
-        break;
-        
-      case "volume":
-        if (cmd.params?.level !== undefined) {
-          const vol = parseFloat(cmd.params.level);
-          if (vol >= 0 && vol <= 1) {
-            setVolume(vol);
-            if (videoRef.current) {
-              videoRef.current.volume = vol;
+          break;
+
+        case "pause":
+          if (videoRef.current && isPlaying) {
+            videoRef.current.pause();
+            setIsPlaying(false);
+          }
+          break;
+
+        case "stop":
+          if (videoRef.current) {
+            videoRef.current.pause();
+            videoRef.current.currentTime = 0;
+            setIsPlaying(false);
+          }
+          break;
+
+        case "next":
+          if (items.length > 0) setIdx((i) => (i + 1) % items.length);
+          break;
+
+        case "previous":
+          if (items.length > 0) setIdx((i) => (i - 1 + items.length) % items.length);
+          break;
+
+        case "goto":
+          if (cmd.params?.index !== undefined) {
+            const newIdx = parseInt(cmd.params.index);
+            if (newIdx >= 0 && newIdx < items.length) {
+              setIdx(newIdx);
             }
           }
-        }
-        break;
-        
-      case "mute":
-        setVolume(0);
-        if (videoRef.current) {
-          videoRef.current.volume = 0;
-        }
-        break;
-        
-      case "unmute":
-        setVolume(0.5);
-        if (videoRef.current) {
-          videoRef.current.volume = 0.5;
-        }
-        break;
-        
-      case "seek":
-        if (videoRef.current && cmd.params?.time !== undefined) {
-          videoRef.current.currentTime = parseFloat(cmd.params.time);
-        }
-        break;
-        
-      default:
-        console.warn("Unknown command:", cmd.command);
-    }
-    
-    // Mark command as executed
-    fetch(`/api/player/poll-commands?device=${device}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        commandId: cmd.id, 
-        status: "executed" 
-      })
-    }).catch(console.error);
-  }, [device, items.length, isPlaying]);
+          break;
+
+        case "volume":
+          if (cmd.params?.level !== undefined) {
+            const vol = parseFloat(cmd.params.level);
+            if (vol >= 0 && vol <= 1) {
+              setVolume(vol);
+              if (videoRef.current) {
+                videoRef.current.volume = vol;
+                videoRef.current.muted = vol === 0; // (4) sinkron mute
+              }
+            }
+          }
+          break;
+
+        case "mute":
+          setVolume(0);
+          if (videoRef.current) {
+            videoRef.current.volume = 0;
+            videoRef.current.muted = true;
+          }
+          break;
+
+        case "unmute":
+          setVolume(0.5);
+          if (videoRef.current) {
+            videoRef.current.volume = 0.5;
+            videoRef.current.muted = false;
+          }
+          break;
+
+        case "seek":
+          if (videoRef.current && cmd.params?.time !== undefined) {
+            videoRef.current.currentTime = parseFloat(cmd.params.time);
+          }
+          break;
+
+        default:
+          console.warn("Unknown command:", cmd.command);
+      }
+
+      // Mark command as executed
+      fetch(`/api/player/poll-commands?device=${device}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commandId: cmd.id, status: "executed" })
+      }).catch(console.error);
+    },
+    [device, items.length, isPlaying]
+  );
 
   // Poll for remote commands
   useEffect(() => {
     if (!device || !remoteControlEnabled) return;
-    
+
     const pollCommands = async () => {
       try {
         const res = await fetch(`/api/player/poll-commands?device=${device}`, {
           cache: "no-store"
         });
-        
+
         if (res.ok) {
           const data = await res.json();
           if (data.commands && data.commands.length > 0) {
-            // Execute all pending commands
             data.commands.forEach((cmd: RemoteCommand) => {
               executeCommand(cmd);
             });
@@ -156,142 +171,152 @@ export default function PlayerPage() {
       }
     };
 
-    // Poll every 2 seconds for commands
     const interval = setInterval(pollCommands, 2000);
-    
     return () => clearInterval(interval);
   }, [device, remoteControlEnabled, executeCommand]);
 
   const nextItem = useCallback(() => {
+    if (items.length === 0) return;
     setIdx((i) => (i + 1) % items.length);
   }, [items.length]);
 
   const previousItem = useCallback(() => {
+    if (items.length === 0) return;
     setIdx((i) => (i - 1 + items.length) % items.length);
   }, [items.length]);
 
   const togglePlayPause = useCallback(() => {
-    if (!videoRef.current) return;
-    
+    const el = videoRef.current;
+    if (!el) return;
+
     if (isPlaying) {
-      videoRef.current.pause();
+      el.pause();
       setIsPlaying(false);
     } else {
-      videoRef.current.play().catch(console.error);
+      el
+        .play()
+        .catch(() => {
+          // (4) fallback autoplay: paksa mute dulu
+          el.muted = true;
+          el.play().catch(console.error);
+        });
       setIsPlaying(true);
     }
   }, [isPlaying]);
 
   const adjustVolume = useCallback((delta: number) => {
-    setVolume(prev => {
+    setVolume((prev) => {
       const newVolume = Math.max(0, Math.min(1, prev + delta));
       if (videoRef.current) {
         videoRef.current.volume = newVolume;
+        videoRef.current.muted = newVolume === 0; // (4)
       }
       return newVolume;
     });
   }, []);
 
   const toggleMute = useCallback(() => {
-    setVolume(prev => {
+    setVolume((prev) => {
       const newVolume = prev > 0 ? 0 : 0.5;
       if (videoRef.current) {
         videoRef.current.volume = newVolume;
+        videoRef.current.muted = newVolume === 0; // (4)
       }
       return newVolume;
     });
   }, []);
 
+  // (5) fullscreen ke elemen container (fallback ke video/document)
   const toggleFullscreen = useCallback(() => {
+    const el =
+      containerRef.current || videoRef.current || document.documentElement;
     if (document.fullscreenElement) {
       document.exitFullscreen?.();
     } else {
-      document.documentElement.requestFullscreen?.();
+      el.requestFullscreen?.();
     }
   }, []);
 
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = volume;
+      videoRef.current.muted = volume === 0; // (4)
     }
   }, [volume]);
 
   useEffect(() => {
     const handleMouseMove = () => {
       setShowControls(true);
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-      controlsTimeoutRef.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
     };
 
     const handleKeyPress = (e: KeyboardEvent) => {
       setShowControls(true);
-      
+
       switch (e.key) {
-        case ' ':
-          e.preventDefault();
-          togglePlayPause();
+        case " ":
+          if (items.length > 0) {
+            e.preventDefault();
+            togglePlayPause();
+          }
           break;
-        case 'ArrowRight':
-          e.preventDefault();
-          nextItem();
+        case "ArrowRight":
+          if (items.length > 0) {
+            e.preventDefault();
+            nextItem();
+          }
           break;
-        case 'ArrowLeft':
-          e.preventDefault();
-          previousItem();
+        case "ArrowLeft":
+          if (items.length > 0) {
+            e.preventDefault();
+            previousItem();
+          }
           break;
-        case 'ArrowUp':
+        case "ArrowUp":
           e.preventDefault();
           adjustVolume(0.1);
           break;
-        case 'ArrowDown':
+        case "ArrowDown":
           e.preventDefault();
           adjustVolume(-0.1);
           break;
-        case 'm':
-        case 'M':
+        case "m":
+        case "M":
           e.preventDefault();
           toggleMute();
           break;
-        case 'f':
-        case 'F':
+        case "f":
+        case "F":
           e.preventDefault();
           toggleFullscreen();
           break;
       }
-      
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
-      controlsTimeoutRef.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
+
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
     };
 
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('keydown', handleKeyPress);
-    document.addEventListener('click', handleMouseMove);
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("keydown", handleKeyPress);
+    document.addEventListener("click", handleMouseMove);
 
     return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('keydown', handleKeyPress);
-      document.removeEventListener('click', handleMouseMove);
-      if (controlsTimeoutRef.current) {
-        clearTimeout(controlsTimeoutRef.current);
-      }
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("keydown", handleKeyPress);
+      document.removeEventListener("click", handleMouseMove);
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     };
-  }, [togglePlayPause, nextItem, previousItem, adjustVolume, toggleMute, toggleFullscreen]);
+  }, [togglePlayPause, nextItem, previousItem, adjustVolume, toggleMute, toggleFullscreen, items.length]);
 
+  // (3) jaga index saat polling playlist, hindari lompat
   const fetchPlaylist = useCallback(async () => {
     if (!device) return;
 
     try {
       const res = await fetch(`/api/player/playlist?device=${device}`, {
         headers: etagRef.current ? { "If-None-Match": etagRef.current } : undefined,
-        cache: "no-store",
+        cache: "no-store"
       });
 
       if (res.status === 304) {
@@ -299,48 +324,59 @@ export default function PlayerPage() {
         return;
       }
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
       const etag = res.headers.get("etag");
       const data = await res.json();
-
       if (etag) etagRef.current = etag;
-      
-      const validItems = (data.items || []).filter((item: any) => 
-        item && item.id && item.type && item.url
+
+      const validItems: Item[] = (data.items || []).filter(
+        (it: any) => it && it.id && it.type && it.url
       );
 
-      setItems(validItems);
-      setIdx(0);
+      // cek apakah sama persis (id dan urutan) untuk hindari setState tidak perlu
+      const sameList =
+        validItems.length === items.length &&
+        validItems.every((v, i) => v.id === items[i]?.id);
+
+      if (!sameList) {
+        const prevCurrentId = items[idx]?.id;
+        setItems(validItems);
+
+        // pertahankan index jika id masih ada
+        const newIdx = validItems.findIndex((it) => it.id === prevCurrentId);
+        setIdx(newIdx >= 0 ? newIdx : 0);
+      }
+
       setError(null);
       retryCountRef.current = 0;
-      
     } catch (err) {
       console.error("Fetch error:", err);
       retryCountRef.current++;
-      
+
       if (retryCountRef.current >= maxRetries) {
         setError(`Failed to fetch playlist after ${maxRetries} attempts.`);
       } else {
-        setError(`Connection issue (attempt ${retryCountRef.current}/${maxRetries}). Retrying...`);
+        setError(
+          `Connection issue (attempt ${retryCountRef.current}/${maxRetries}). Retrying...`
+        );
         setTimeout(() => fetchPlaylist(), 5000 * retryCountRef.current);
       }
     } finally {
       setLoading(false);
     }
-  }, [device]);
+  }, [device, items, idx]); // dependensi termasuk items/idx agar preserve-idx akurat
 
+  // heartbeat
   useEffect(() => {
     if (!device) return;
-    
+
     const sendHeartbeat = async () => {
       try {
         await fetch(`/api/player/heartbeat?device=${device}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerVer: "web-1.5-remote" }),
+          body: JSON.stringify({ playerVer: "web-1.5-remote" })
         });
       } catch (err) {
         console.error("Heartbeat error:", err);
@@ -349,19 +385,18 @@ export default function PlayerPage() {
 
     sendHeartbeat();
     const heartbeatInterval = setInterval(sendHeartbeat, 30000);
-
     return () => clearInterval(heartbeatInterval);
   }, [device]);
 
+  // polling playlist
   useEffect(() => {
     if (!device) return;
-    
     fetchPlaylist();
     const pollInterval = setInterval(() => fetchPlaylist(), 45000);
-
     return () => clearInterval(pollInterval);
   }, [device, fetchPlaylist]);
 
+  // (7) schedule otomatis untuk image; reset fail counter saat index berubah
   useEffect(() => {
     if (!items.length) return;
     const current = items[idx];
@@ -370,6 +405,8 @@ export default function PlayerPage() {
       clearTimeout(imageTimerRef.current);
       imageTimerRef.current = null;
     }
+
+    failCountRef.current = 0; // reset saat pindah item normal
 
     if (current?.type === "image") {
       imageTimerRef.current = setTimeout(() => {
@@ -385,10 +422,20 @@ export default function PlayerPage() {
     };
   }, [idx, items, nextItem]);
 
-  const handleMediaError = useCallback((mediaType: string) => {
-    console.error(`${mediaType} load error:`, items[idx]?.url);
-    setTimeout(() => nextItem(), 1000);
-  }, [items, idx, nextItem]);
+  // (7) tangani error media dan cegah infinite loop
+  const handleMediaError = useCallback(
+    (mediaType: string) => {
+      console.error(`${mediaType} load error:`, items[idx]?.url);
+      failCountRef.current += 1;
+
+      if (failCountRef.current >= items.length) {
+        setError("All playlist items failed to load.");
+        return;
+      }
+      setTimeout(() => nextItem(), 500);
+    },
+    [items, idx, nextItem]
+  );
 
   const handleVideoEnd = useCallback(() => {
     nextItem();
@@ -396,6 +443,7 @@ export default function PlayerPage() {
 
   const handleVideoPlay = useCallback(() => {
     setIsPlaying(true);
+    failCountRef.current = 0; // sukses play -> reset counter gagal
   }, []);
 
   const handleVideoPause = useCallback(() => {
@@ -407,14 +455,30 @@ export default function PlayerPage() {
     setVolume(newVolume);
     if (videoRef.current) {
       videoRef.current.volume = newVolume;
+      videoRef.current.muted = newVolume === 0; // (4)
     }
   }, []);
 
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = volume;
+      videoRef.current.muted = volume === 0; // (4)
     }
   }, [idx, volume]);
+
+  // (4) visibilitas tab: pause saat hidden (hemat resource)
+  useEffect(() => {
+    const onVis = () => {
+      if (document.hidden) {
+        if (videoRef.current && !videoRef.current.paused) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   if (!device) {
     return (
@@ -479,9 +543,7 @@ export default function PlayerPage() {
           <div className="text-2xl mb-2">No Content</div>
           <div className="text-gray-400 mb-2">No playlist assigned to this device</div>
           <div className="text-gray-500 text-sm">Device: {device}</div>
-          <div className="mt-4 text-gray-600 text-xs">
-            Checking for updates every 45 seconds...
-          </div>
+          <div className="mt-4 text-gray-600 text-xs">Checking for updates every 45 seconds...</div>
         </div>
       </div>
     );
@@ -493,7 +555,9 @@ export default function PlayerPage() {
       <div className="w-screen h-screen bg-black text-white grid place-items-center">
         <div className="text-center">
           <div className="text-2xl mb-2">⚠️ Invalid Media</div>
-          <div className="text-gray-400">Item {idx + 1} of {items.length}</div>
+          <div className="text-gray-400">
+            Item {idx + 1} of {items.length}
+          </div>
         </div>
       </div>
     );
@@ -507,7 +571,7 @@ export default function PlayerPage() {
       : "object-contain";
 
   return (
-    <main className="w-screen h-screen bg-black overflow-hidden relative">
+    <main ref={containerRef} className="w-screen h-screen bg-black overflow-hidden relative">
       {current.type === "image" ? (
         <img
           key={`img-${current.id}-${idx}`}
@@ -525,10 +589,17 @@ export default function PlayerPage() {
           className={`${fitClass} w-full h-full`}
           autoPlay
           playsInline
+          // (4) jaga autoplay di mobile: jika gagal, akan ditangani di togglePlay / executeCommand
           onEnded={handleVideoEnd}
           onError={() => handleMediaError("Video")}
           onPlay={handleVideoPlay}
           onPause={handleVideoPause}
+          onLoadedMetadata={() => {
+            if (videoRef.current) {
+              videoRef.current.volume = volume;
+              videoRef.current.muted = volume === 0;
+            }
+          }}
           controls={false}
           preload="metadata"
         />
@@ -555,15 +626,11 @@ export default function PlayerPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="text-sm text-gray-300">
-                  Device: {device}
-                </div>
+                <div className="text-sm text-gray-300">Device: {device}</div>
                 <button
                   onClick={() => setRemoteControlEnabled(!remoteControlEnabled)}
                   className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    remoteControlEnabled 
-                      ? "bg-green-600 text-white" 
-                      : "bg-gray-600 text-gray-300"
+                    remoteControlEnabled ? "bg-green-600 text-white" : "bg-gray-600 text-gray-300"
                   }`}
                 >
                   {remoteControlEnabled ? "🟢 Remote ON" : "⚪ Remote OFF"}
@@ -582,7 +649,7 @@ export default function PlayerPage() {
                 >
                   ⏮️
                 </button>
-                
+
                 {current.type === "video" && (
                   <button
                     onClick={togglePlayPause}
@@ -592,7 +659,7 @@ export default function PlayerPage() {
                     {isPlaying ? "⏸️" : "▶️"}
                   </button>
                 )}
-                
+
                 <button
                   onClick={nextItem}
                   className="bg-white/20 hover:bg-white/30 p-3 rounded-full transition-colors backdrop-blur-sm"
@@ -606,9 +673,7 @@ export default function PlayerPage() {
                 <div className="text-sm text-gray-300">
                   {current.type === "video" ? "🎬 Video" : "🖼️ Image"}
                 </div>
-                <div className="text-xs text-gray-400">
-                  {current.displayFit}
-                </div>
+                <div className="text-xs text-gray-400">{current.displayFit}</div>
               </div>
 
               {current.type === "video" && (
@@ -631,7 +696,9 @@ export default function PlayerPage() {
                       className="w-24 h-2 bg-white/20 rounded-lg appearance-none cursor-pointer"
                       title="Volume (↑/↓)"
                       style={{
-                        background: `linear-gradient(to right, #10b981 0%, #10b981 ${volume * 100}%, rgba(255,255,255,0.2) ${volume * 100}%, rgba(255,255,255,0.2) 100%)`
+                        background: `linear-gradient(to right, #10b981 0%, #10b981 ${
+                          volume * 100
+                        }%, rgba(255,255,255,0.2) ${volume * 100}%, rgba(255,255,255,0.2) 100%)`
                       }}
                     />
                     <span className="text-xs text-gray-300 w-10 text-right">
@@ -646,11 +713,23 @@ export default function PlayerPage() {
           <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-300 pointer-events-auto">
             <div className="font-semibold mb-2">⌨️ Keyboard Shortcuts:</div>
             <div className="space-y-1">
-              <div><kbd className="bg-white/20 px-1 rounded">Space</kbd> Play/Pause</div>
-              <div><kbd className="bg-white/20 px-1 rounded">←</kbd> <kbd className="bg-white/20 px-1 rounded">→</kbd> Prev/Next</div>
-              <div><kbd className="bg-white/20 px-1 rounded">↑</kbd> <kbd className="bg-white/20 px-1 rounded">↓</kbd> Volume</div>
-              <div><kbd className="bg-white/20 px-1 rounded">M</kbd> Mute</div>
-              <div><kbd className="bg-white/20 px-1 rounded">F</kbd> Fullscreen</div>
+              <div>
+                <kbd className="bg-white/20 px-1 rounded">Space</kbd> Play/Pause
+              </div>
+              <div>
+                <kbd className="bg-white/20 px-1 rounded">←</kbd>{" "}
+                <kbd className="bg-white/20 px-1 rounded">→</kbd> Prev/Next
+              </div>
+              <div>
+                <kbd className="bg-white/20 px-1 rounded">↑</kbd>{" "}
+                <kbd className="bg-white/20 px-1 rounded">↓</kbd> Volume
+              </div>
+              <div>
+                <kbd className="bg-white/20 px-1 rounded">M</kbd> Mute
+              </div>
+              <div>
+                <kbd className="bg-white/20 px-1 rounded">F</kbd> Fullscreen
+              </div>
             </div>
           </div>
         </div>
@@ -676,7 +755,7 @@ export default function PlayerPage() {
           background: white;
           border-radius: 50%;
           cursor: pointer;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
         input[type="range"]::-webkit-slider-thumb:hover {
           transform: scale(1.2);
@@ -688,7 +767,7 @@ export default function PlayerPage() {
           border-radius: 50%;
           cursor: pointer;
           border: none;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
         }
         input[type="range"]::-moz-range-thumb:hover {
           transform: scale(1.2);

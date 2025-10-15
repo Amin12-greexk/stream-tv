@@ -57,6 +57,14 @@ export async function GET(
     const mimeType = mimeTypes[ext] || "application/octet-stream";
     const rangeHeader = req.headers.get("range");
 
+    // <<< --- PERUBAHAN UTAMA DI SINI --- >>>
+    // Header untuk menonaktifkan cache
+    const noCacheHeaders = {
+      "Cache-Control": "no-store, no-cache, must-revalidate, private",
+      "Pragma": "no-cache",
+      "Expires": "0",
+    };
+
     // Handle range requests (for video seeking)
     if (rangeHeader) {
       const { start, end } = parseRangeHeader(rangeHeader, fileSize);
@@ -114,11 +122,11 @@ export async function GET(
       return new NextResponse(stream, {
         status: 206,
         headers: {
+          ...noCacheHeaders, // Terapkan header no-cache
           "Content-Range": `bytes ${start}-${end}/${fileSize}`,
           "Accept-Ranges": "bytes",
           "Content-Length": chunkSize.toString(),
           "Content-Type": mimeType,
-          "Cache-Control": "public, max-age=3600",
         },
       });
     }
@@ -129,10 +137,10 @@ export async function GET(
       
       return new NextResponse(fileBuffer, {
         headers: {
+          ...noCacheHeaders, // Terapkan header no-cache
           "Content-Length": fileSize.toString(),
           "Content-Type": mimeType,
           "Accept-Ranges": "bytes",
-          "Cache-Control": "public, max-age=3600",
         },
       });
     } catch (error) {
