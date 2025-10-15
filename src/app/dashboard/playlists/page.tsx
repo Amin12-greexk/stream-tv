@@ -1,4 +1,4 @@
-// src/app/dashboard/playlists/page.tsx
+// ===== src/app/dashboard/playlists/page.tsx - UPDATED WITH LOOP =====
 "use client";
 import { useEffect, useState } from "react";
 
@@ -19,6 +19,8 @@ type PlaylistItem = {
   displayFit: string;
   imageDuration: number | null;
   media: Media;
+  // ⬇️ BARU:
+  loop: boolean;
 };
 
 type Playlist = {
@@ -43,6 +45,8 @@ export default function PlaylistsPage() {
   const [selectedMediaId, setSelectedMediaId] = useState("");
   const [displayFit, setDisplayFit] = useState("contain");
   const [imageDuration, setImageDuration] = useState(8);
+  // ⬇️ BARU:
+  const [loopItem, setLoopItem] = useState(false);
 
   async function loadPlaylists() {
     const res = await fetch("/api/playlist", { cache: "no-store" });
@@ -64,7 +68,6 @@ export default function PlaylistsPage() {
 
   async function createPlaylist(e: React.FormEvent) {
     e.preventDefault();
-    
     const res = await fetch("/api/playlist", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -83,7 +86,6 @@ export default function PlaylistsPage() {
 
   async function deletePlaylist(id: string) {
     if (!confirm("Delete this playlist? This action cannot be undone.")) return;
-    
     const res = await fetch(`/api/playlist?id=${id}`, { method: "DELETE" });
     if (res.ok) {
       loadPlaylists();
@@ -103,14 +105,19 @@ export default function PlaylistsPage() {
       body: JSON.stringify({
         mediaId: selectedMediaId,
         displayFit,
-        imageDuration: displayFit === "contain" || displayFit === "cover" ? imageDuration : null,
+        imageDuration:
+          displayFit === "contain" || displayFit === "cover" ? imageDuration : null,
+        // ⬇️ sertakan loop
+        loop: loopItem,
       }),
     });
 
     if (res.ok) {
+      // reset form
       setSelectedMediaId("");
       setDisplayFit("contain");
       setImageDuration(8);
+      setLoopItem(false); // reset
       setShowMediaForm(false);
       loadPlaylists();
     }
@@ -120,7 +127,6 @@ export default function PlaylistsPage() {
     const res = await fetch(`/api/playlist/${playlistId}/items?itemId=${itemId}`, {
       method: "DELETE",
     });
-    
     if (res.ok) {
       loadPlaylists();
     }
@@ -141,7 +147,6 @@ export default function PlaylistsPage() {
         return sum + (item.imageDuration || 8);
       }
     }, 0);
-    
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
     return `${mins}:${secs.toString().padStart(2, "0")}`;
@@ -295,12 +300,27 @@ export default function PlaylistsPage() {
                           </label>
                           <input
                             type="number"
-                            min="1"
-                            max="300"
+                            min={1}
+                            max={300}
                             className="w-full border border-gray-300 p-2 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none"
                             value={imageDuration}
                             onChange={(e) => setImageDuration(Number(e.target.value))}
                           />
+                        </div>
+                      )}
+
+                      {/* ⬇️ BARU: opsi loop */}
+                      {selectedMediaId && (
+                        <div>
+                          <label className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={loopItem}
+                              onChange={(e) => setLoopItem(e.target.checked)}
+                              className="h-4 w-4 text-green-600 border-gray-300 rounded"
+                            />
+                            Loop media ini (🔁)
+                          </label>
                         </div>
                       )}
 
@@ -318,6 +338,7 @@ export default function PlaylistsPage() {
                             setSelectedMediaId("");
                             setDisplayFit("contain");
                             setImageDuration(8);
+                            setLoopItem(false); // reset
                           }}
                           className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 transition text-sm"
                         >
@@ -358,6 +379,8 @@ export default function PlaylistsPage() {
                                   : `${item.imageDuration || 8}s`
                                 }
                               </span>
+                              {/* ⬇️ BARU: indikator loop */}
+                              {item.loop && <span className="mx-2">• 🔁</span>}
                             </div>
                           </div>
 

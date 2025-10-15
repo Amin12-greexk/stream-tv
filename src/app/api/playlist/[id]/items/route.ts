@@ -1,4 +1,4 @@
-// ===== src/app/api/playlists/[id]/items/route.ts - FIXED =====
+// ===== src/app/api/playlists/[id]/items/route.ts - UPDATED WITH LOOP =====
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -9,16 +9,16 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Await params for Next.js 15 compatibility
+    // Await params untuk Next.js 15
     const { id: playlistId } = await params;
     const body = await req.json();
-    const { mediaId, displayFit, imageDuration } = body;
+    const { mediaId, displayFit, imageDuration, loop } = body;
 
     if (!mediaId || !displayFit) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Get max order
+    // Cari order terbesar saat ini
     const maxItem = await prisma.playlistItem.findFirst({
       where: { playlistId },
       orderBy: { order: "desc" },
@@ -31,6 +31,8 @@ export async function POST(
         order: (maxItem?.order ?? -1) + 1,
         displayFit,
         imageDuration: imageDuration || null,
+        // ⬇️ simpan loop (default false jika undefined)
+        loop: !!loop,
       },
       include: { media: true },
     });
@@ -47,9 +49,9 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // Await params for Next.js 15 compatibility
-    await params; // We need this for route validation even if not using the id
-    
+    // Await params untuk Next.js 15
+    await params; // validasi route
+
     const itemId = new URL(req.url).searchParams.get("itemId");
     if (!itemId) {
       return NextResponse.json({ error: "Missing itemId" }, { status: 400 });

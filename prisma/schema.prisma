@@ -82,6 +82,7 @@ model PlaylistItem {
   order         Int
   displayFit    String    // "contain" | "cover" | "stretch"
   imageDuration Int?      // seconds for images
+  loop          Boolean  @default(false)
 
   @@index([playlistId])
   @@index([mediaId])
