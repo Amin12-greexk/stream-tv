@@ -1,5 +1,4 @@
-
-// ===== src/app/api/playlists/[id]/items/route.ts =====
+// ===== src/app/api/playlists/[id]/items/route.ts - FIXED =====
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -7,10 +6,11 @@ export const dynamic = "force-dynamic";
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const playlistId = params.id;
+    // Await params for Next.js 15 compatibility
+    const { id: playlistId } = await params;
     const body = await req.json();
     const { mediaId, displayFit, imageDuration } = body;
 
@@ -37,15 +37,19 @@ export async function POST(
 
     return NextResponse.json(item, { status: 201 });
   } catch (error) {
+    console.error("Failed to add playlist item:", error);
     return NextResponse.json({ error: "Failed to add item" }, { status: 500 });
   }
 }
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // Await params for Next.js 15 compatibility
+    await params; // We need this for route validation even if not using the id
+    
     const itemId = new URL(req.url).searchParams.get("itemId");
     if (!itemId) {
       return NextResponse.json({ error: "Missing itemId" }, { status: 400 });
@@ -54,6 +58,7 @@ export async function DELETE(
     await prisma.playlistItem.delete({ where: { id: itemId } });
     return NextResponse.json({ ok: true });
   } catch (error) {
+    console.error("Failed to delete playlist item:", error);
     return NextResponse.json({ error: "Failed to delete item" }, { status: 500 });
   }
 }

@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+const config = {
   content: [
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
@@ -8,65 +8,48 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        primary: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
-        },
-        green: {
-          50: '#ecfdf5',
-          100: '#d1fae5',
-          200: '#a7f3d0',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          800: '#065f46',
-          900: '#064e3b',
-        },
-      },
-      fontFamily: {
-        sans: [
-          '-apple-system',
-          'BlinkMacSystemFont',
-          '"Segoe UI"',
-          'Roboto',
-          '"Helvetica Neue"',
-          'Arial',
-          'sans-serif',
-        ],
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-conic': 'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
+        background: "var(--background)",
+        foreground: "var(--foreground)",
       },
       animation: {
-        'pulse-green': 'pulse-green 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        'spin-slow': 'spin 3s linear infinite',
+        'pulse-dot': 'pulse-dot 2s infinite',
+        'float': 'float 3s ease-in-out infinite',
+        'shimmer': 'shimmer 1.5s infinite',
       },
       keyframes: {
-        'pulse-green': {
-          '0%, 100%': {
-            opacity: '1',
+        'pulse-dot': {
+          '0%, 100%': { 
+            opacity: '1', 
+            transform: 'scale(1)' 
           },
-          '50%': {
-            opacity: '.5',
-          },
+          '50%': { 
+            opacity: '0.6', 
+            transform: 'scale(0.95)' 
+          }
         },
+        'float': {
+          '0%, 100%': { 
+            transform: 'translateY(0px)' 
+          },
+          '50%': { 
+            transform: 'translateY(-5px)' 
+          }
+        },
+        'shimmer': {
+          '0%': { 
+            'background-position': '-200% 0' 
+          },
+          '100%': { 
+            'background-position': '200% 0' 
+          }
+        }
       },
-      boxShadow: {
-        'green': '0 4px 14px 0 rgba(16, 185, 129, 0.2)',
-        'green-lg': '0 10px 28px 0 rgba(16, 185, 129, 0.25)',
-      },
+      backdropBlur: {
+        'custom': '10px',
+      }
     },
   },
   plugins: [],
-}
+};
+
+export default config;

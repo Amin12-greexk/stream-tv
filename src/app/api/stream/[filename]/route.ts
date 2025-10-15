@@ -1,4 +1,4 @@
-// src/app/api/stream/[filename]/route.ts
+// src/app/api/stream/[filename]/route.ts - FIXED VERSION
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
@@ -15,10 +15,11 @@ function parseRangeHeader(rangeHeader: string, fileSize: number) {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
-    const { filename } = params;
+    // Await params untuk Next.js 15 compatibility
+    const { filename } = await params;
     
     if (!filename) {
       return NextResponse.json({ error: "Filename required" }, { status: 400 });
@@ -60,15 +61,54 @@ export async function GET(
     if (rangeHeader) {
       const { start, end } = parseRangeHeader(rangeHeader, fileSize);
       const chunkSize = end - start + 1;
-      const fileStream = fs.createReadStream(filePath, { start, end });
 
-      // Convert stream to ReadableStream for Next.js
+      // Create a more robust ReadableStream
       const stream = new ReadableStream({
         start(controller) {
-          fileStream.on("data", (chunk) => controller.enqueue(chunk));
-          fileStream.on("end", () => controller.close());
-          fileStream.on("error", (err) => controller.error(err));
+          const fileStream = fs.createReadStream(filePath, { start, end });
+          let isEnded = false;
+
+          fileStream.on("data", (chunk) => {
+            if (!isEnded) {
+              try {
+                controller.enqueue(chunk);
+              } catch (error) {
+                if (!isEnded) {
+                  console.error("Stream enqueue error:", error);
+                  isEnded = true;
+                  controller.error(error);
+                }
+              }
+            }
+          });
+
+          fileStream.on("end", () => {
+            if (!isEnded) {
+              isEnded = true;
+              try {
+                controller.close();
+              } catch (error) {
+                console.error("Stream close error:", error);
+              }
+            }
+          });
+
+          fileStream.on("error", (err) => {
+            if (!isEnded) {
+              isEnded = true;
+              console.error("File stream error:", err);
+              try {
+                controller.error(err);
+              } catch (error) {
+                console.error("Stream error handling error:", error);
+              }
+            }
+          });
         },
+        cancel() {
+          // Cleanup if stream is cancelled
+          console.log("Stream cancelled");
+        }
       });
 
       return new NextResponse(stream, {
@@ -83,26 +123,23 @@ export async function GET(
       });
     }
 
-    // For non-range requests, stream the entire file
-    const fileStream = fs.createReadStream(filePath);
-    
-    // Convert Node.js stream to Web ReadableStream
-    const stream = new ReadableStream({
-      start(controller) {
-        fileStream.on("data", (chunk) => controller.enqueue(chunk));
-        fileStream.on("end", () => controller.close());
-        fileStream.on("error", (err) => controller.error(err));
-      },
-    });
+    // For non-range requests, use a simpler approach
+    try {
+      const fileBuffer = fs.readFileSync(filePath);
+      
+      return new NextResponse(fileBuffer, {
+        headers: {
+          "Content-Length": fileSize.toString(),
+          "Content-Type": mimeType,
+          "Accept-Ranges": "bytes",
+          "Cache-Control": "public, max-age=3600",
+        },
+      });
+    } catch (error) {
+      console.error("File read error:", error);
+      return NextResponse.json({ error: "Failed to read file" }, { status: 500 });
+    }
 
-    return new NextResponse(stream, {
-      headers: {
-        "Content-Length": fileSize.toString(),
-        "Content-Type": mimeType,
-        "Accept-Ranges": "bytes",
-        "Cache-Control": "public, max-age=3600",
-      },
-    });
   } catch (error) {
     console.error("Streaming error:", error);
     return NextResponse.json({ error: "Streaming failed" }, { status: 500 });

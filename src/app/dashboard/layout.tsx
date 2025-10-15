@@ -1,4 +1,3 @@
-// src/app/dashboard/layout.tsx
 "use client";
 import { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -25,12 +24,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <section className="min-h-screen bg-gradient-to-br from-green-50 via-gray-50 to-emerald-50">
+    <div className="min-h-screen bg-gradient-to-br from-green-50 via-gray-50 to-emerald-50">
       {/* Header */}
-      <header className="bg-white border-b border-green-100 shadow-sm">
+      <header className="bg-white border-b border-green-100 shadow-sm sticky top-0 z-10">
         <div className="flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-12 h-12 bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
               <span className="text-2xl">📺</span>
             </div>
             <div>
@@ -44,12 +43,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           {/* User Menu */}
           <div className="flex items-center gap-4">
             <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
               <span>System Online</span>
             </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200 font-medium"
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all duration-200 font-medium"
             >
               <span>🚪</span>
               Logout
@@ -87,6 +86,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <p>© 2025 TV TEI - Digital Signage Management System</p>
         </div>
       </footer>
-    </section>
+    </div>
   );
 }
+

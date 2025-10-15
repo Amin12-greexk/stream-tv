@@ -1,4 +1,4 @@
-// File: src/app/dashboard/manual-player/page.tsx
+// File: src/app/dashboard/manual-player/page.tsx - TYPESCRIPT SAFE VERSION
 
 "use client";
 import { useEffect, useState, useRef } from "react";
@@ -31,11 +31,52 @@ export default function ManualPlayerPage() {
   const [displayFit, setDisplayFit] = useState<"contain" | "cover" | "stretch">("contain");
   const [imageDuration, setImageDuration] = useState(8);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load media and devices
+  // Load media and devices with proper error handling
+  async function loadData() {
+    setLoading(true);
+    setError(null);
+    
+    // Load media files
+    let allMedia: Media[] = [];
+    try {
+      const mediaRes = await fetch("/api/media", { cache: "no-store" });
+      if (mediaRes.ok) {
+        allMedia = await mediaRes.json();
+      } else {
+        console.warn("Media API returned non-OK status:", mediaRes.status);
+      }
+    } catch (error) {
+      console.warn("Failed to load media files:", error);
+    }
+    setMediaList(allMedia);
+
+    // Load devices
+    let devices: Device[] = [];
+    try {
+      const deviceRes = await fetch("/api/devices", { cache: "no-store" });
+      if (deviceRes.ok) {
+        devices = await deviceRes.json();
+      } else {
+        console.warn("Devices API returned non-OK status:", deviceRes.status);
+      }
+    } catch (error) {
+      console.warn("Failed to load devices:", error);
+    }
+    setDeviceList(devices);
+
+    // Set error message if both failed but don't block usage
+    if (allMedia.length === 0 && devices.length === 0) {
+      setError("Unable to load media and devices. You can still use the manual player if you upload media files.");
+    }
+
+    setLoading(false);
+  }
+
   useEffect(() => {
     loadData();
   }, []);
@@ -46,30 +87,6 @@ export default function ManualPlayerPage() {
       videoRef.current.volume = volume;
     }
   }, [volume]);
-
-  async function loadData() {
-    setLoading(true);
-    try {
-      const [mediaRes, deviceRes] = await Promise.all([
-        fetch("/api/media", { cache: "no-store" }),
-        fetch("/api/devices", { cache: "no-store" })
-      ]);
-
-      if (mediaRes.ok) {
-        const allMedia: Media[] = await mediaRes.json();
-        setMediaList(allMedia);
-      }
-
-      if (deviceRes.ok) {
-        const devices: Device[] = await deviceRes.json();
-        setDeviceList(devices);
-      }
-    } catch (error) {
-      console.error("Failed to load data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function isDeviceOnline(lastSeen: string | null): boolean {
     if (!lastSeen) return false;
@@ -103,7 +120,11 @@ export default function ManualPlayerPage() {
 
     if (selectedMedia.type === "video") {
       if (videoRef.current) {
-        videoRef.current.play();
+        videoRef.current.play().catch(err => {
+          console.error("Video play error:", err);
+          setIsPlaying(false);
+          alert("Failed to play video. Please check the file format.");
+        });
       }
     } else if (selectedMedia.type === "image") {
       // For images, start timer based on duration
@@ -155,11 +176,25 @@ export default function ManualPlayerPage() {
     if (isLooping) {
       if (videoRef.current) {
         videoRef.current.currentTime = 0;
-        videoRef.current.play();
+        videoRef.current.play().catch(err => {
+          console.error("Video replay error:", err);
+          setIsPlaying(false);
+        });
       }
     } else {
       setIsPlaying(false);
     }
+  };
+
+  const handleVideoError = () => {
+    console.error("Video load error");
+    setIsPlaying(false);
+    alert("Failed to load video. Please check the file format and try again.");
+  };
+
+  const handleImageError = () => {
+    console.error("Image load error");
+    alert("Failed to load image. Please check the file format and try again.");
   };
 
   const fitClass =
@@ -169,10 +204,10 @@ export default function ManualPlayerPage() {
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-500 mx-auto"></div>
-          <p className="text-gray-600 mt-4">Loading manual player...</p>
+      <div className="flex items-center justify-center min-h-96">
+        <div className="text-center">
+          <div className="spinner mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading manual player...</p>
         </div>
       </div>
     );
@@ -182,7 +217,7 @@ export default function ManualPlayerPage() {
     <div className="space-y-8">
       {/* Header */}
       <div className="text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl mb-4 shadow-lg">
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-2xl mb-4 shadow-lg">
           <span className="text-3xl">🎮</span>
         </div>
         <h2 className="text-3xl font-bold text-gray-900 mb-2">Manual Player</h2>
@@ -191,8 +226,22 @@ export default function ManualPlayerPage() {
         </p>
       </div>
 
+      {/* Error Message */}
+      {error && (
+        <div className="alert-warning">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <span className="text-yellow-400">⚠️</span>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Control Panel */}
-      <div className="bg-white rounded-2xl shadow-lg border border-green-100 p-8">
+      <div className="card">
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-green-100">
           <span className="text-2xl">⚙️</span>
           <h3 className="text-xl font-semibold text-gray-900">Player Controls</h3>
@@ -208,16 +257,25 @@ export default function ManualPlayerPage() {
             <select
               id="media-select"
               onChange={(e) => handleMediaSelect(e.target.value)}
-              className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all duration-200 bg-gray-50 focus:bg-white text-gray-900"
+              className="form-select"
               value={selectedMedia?.id || ""}
             >
               <option value="">-- Choose media file --</option>
-              {mediaList.map((media) => (
-                <option key={media.id} value={media.id}>
-                  {media.type === "video" ? "🎬" : "🖼️"} {media.title} ({media.type})
-                </option>
-              ))}
+              {mediaList.length === 0 ? (
+                <option value="" disabled>No media files available</option>
+              ) : (
+                mediaList.map((media) => (
+                  <option key={media.id} value={media.id}>
+                    {media.type === "video" ? "🎬" : "🖼️"} {media.title} ({media.type})
+                  </option>
+                ))
+              )}
             </select>
+            {mediaList.length === 0 && (
+              <p className="text-sm text-gray-500">
+                Upload media files in the Media section to use the manual player.
+              </p>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -229,18 +287,22 @@ export default function ManualPlayerPage() {
               id="device-select"
               value={selectedDevice}
               onChange={(e) => setSelectedDevice(e.target.value)}
-              className="w-full p-4 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all duration-200 bg-gray-50 focus:bg-white text-gray-900"
+              className="form-select"
             >
               <option value="">🖥️ Preview locally</option>
-              {deviceList.map((device) => {
-                const online = isDeviceOnline(device.lastSeen);
-                return (
-                  <option key={device.id} value={device.code}>
-                    {online ? "🟢" : "🔴"} {device.name} ({device.code})
-                    {device.group && ` [${device.group.name}]`}
-                  </option>
-                );
-              })}
+              {deviceList.length === 0 ? (
+                <option value="" disabled>No devices registered</option>
+              ) : (
+                deviceList.map((device) => {
+                  const online = isDeviceOnline(device.lastSeen);
+                  return (
+                    <option key={device.id} value={device.code}>
+                      {online ? "🟢" : "🔴"} {device.name} ({device.code})
+                      {device.group && ` [${device.group.name}]`}
+                    </option>
+                  );
+                })
+              )}
             </select>
           </div>
         </div>
@@ -256,7 +318,7 @@ export default function ManualPlayerPage() {
               id="display-fit"
               value={displayFit}
               onChange={(e) => setDisplayFit(e.target.value as "contain" | "cover" | "stretch")}
-              className="w-full p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all duration-200 bg-gray-50 focus:bg-white text-gray-900"
+              className="form-select"
             >
               <option value="contain">📐 Contain (fit inside)</option>
               <option value="cover">🔳 Cover (fill screen)</option>
@@ -278,7 +340,7 @@ export default function ManualPlayerPage() {
                   max="300"
                   value={imageDuration}
                   onChange={(e) => setImageDuration(Number(e.target.value))}
-                  className="flex-1 p-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition-all duration-200 bg-gray-50 focus:bg-white text-gray-900"
+                  className="form-input flex-1"
                 />
                 <span className="text-sm text-gray-600 font-medium">seconds</span>
               </div>
@@ -299,14 +361,14 @@ export default function ManualPlayerPage() {
                 step="0.05"
                 value={volume}
                 onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="w-full h-3 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                className="w-full"
               />
             </div>
           )}
         </div>
 
         {/* Loop Control */}
-        <div className="flex items-center gap-3 mb-8 p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-200">
+        <div className="flex items-center gap-3 mb-8 p-4 bg-green-50 rounded-xl border border-green-200">
           <input
             id="loop-checkbox"
             type="checkbox"
@@ -325,7 +387,7 @@ export default function ManualPlayerPage() {
           <button
             onClick={handlePlay}
             disabled={!selectedMedia || isPlaying}
-            className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-lg">▶️</span>
             Play
@@ -334,7 +396,7 @@ export default function ManualPlayerPage() {
           <button
             onClick={handlePause}
             disabled={!selectedMedia || !isPlaying}
-            className="flex items-center gap-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 disabled:from-gray-400 disabled:to-gray-500 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+            className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center gap-2"
           >
             <span className="text-lg">⏸️</span>
             Pause
@@ -343,7 +405,7 @@ export default function ManualPlayerPage() {
           <button
             onClick={handleStop}
             disabled={!selectedMedia}
-            className="flex items-center gap-2 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+            className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center gap-2"
           >
             <span className="text-lg">⏹️</span>
             Stop
@@ -354,7 +416,7 @@ export default function ManualPlayerPage() {
               href={getPlayerUrl(selectedDevice)}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
             >
               <span className="text-lg">🔗</span>
               Open on Device
@@ -363,7 +425,7 @@ export default function ManualPlayerPage() {
 
           <button
             onClick={loadData}
-            className="flex items-center gap-2 bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
           >
             <span className="text-lg">🔄</span>
             Refresh
@@ -372,7 +434,7 @@ export default function ManualPlayerPage() {
 
         {/* Selected Media Info */}
         {selectedMedia && (
-          <div className="mt-8 p-6 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+          <div className="mt-8 p-6 bg-blue-50 rounded-xl border border-blue-200">
             <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-4">
               <span className="text-xl">📋</span>
               Selected Media Information
@@ -409,8 +471,8 @@ export default function ManualPlayerPage() {
       </div>
 
       {/* Media Player Area */}
-      <div className="bg-white rounded-2xl shadow-lg border border-green-100 overflow-hidden">
-        <div className="bg-gradient-to-br from-gray-900 to-gray-800 aspect-video w-full relative">
+      <div className="card overflow-hidden">
+        <div className="bg-gray-900 aspect-video w-full relative">
           {selectedMedia ? (
             <>
               {selectedMedia.type === "image" ? (
@@ -418,7 +480,7 @@ export default function ManualPlayerPage() {
                   src={`/api/stream/${selectedMedia.filename}`}
                   className={`${fitClass} w-full h-full`}
                   alt={selectedMedia.title}
-                  onError={() => alert("Failed to load image")}
+                  onError={handleImageError}
                 />
               ) : (
                 <video
@@ -427,20 +489,20 @@ export default function ManualPlayerPage() {
                   className={`${fitClass} w-full h-full`}
                   src={`/api/stream/${selectedMedia.filename}`}
                   onEnded={handleVideoEnded}
-                  onError={() => alert("Failed to load video")}
+                  onError={handleVideoError}
                   controls
                   loop={isLooping}
                 />
               )}
               
               {/* Playback Status Indicator */}
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+              <div className="absolute top-4 left-4 flex items-center gap-2 bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm font-medium">
                 <div className={`w-2 h-2 rounded-full ${isPlaying ? "bg-green-500 animate-pulse" : "bg-gray-400"}`}></div>
                 <span>{isPlaying ? "Playing" : "Paused"}</span>
               </div>
 
               {/* Media Info Overlay */}
-              <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm">
+              <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm">
                 {selectedMedia.type === "video" ? "🎬" : "🖼️"} {selectedMedia.title}
               </div>
             </>
@@ -449,7 +511,12 @@ export default function ManualPlayerPage() {
               <div className="text-center">
                 <div className="text-8xl mb-6">🎬</div>
                 <p className="text-xl font-medium mb-2">No Media Selected</p>
-                <p className="text-gray-500">Choose a media file from the dropdown above to start preview</p>
+                <p className="text-gray-500">
+                  {mediaList.length === 0 
+                    ? "Upload media files in the Media section first, then come back here to preview them."
+                    : "Choose a media file from the dropdown above to start preview"
+                  }
+                </p>
               </div>
             </div>
           )}
@@ -458,7 +525,7 @@ export default function ManualPlayerPage() {
 
       {/* Device Status Panel */}
       {deviceList.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-lg border border-green-100 p-8">
+        <div className="card">
           <div className="flex items-center gap-3 mb-6">
             <span className="text-2xl">📱</span>
             <h3 className="text-xl font-semibold text-gray-900">Available Devices</h3>
@@ -475,7 +542,7 @@ export default function ManualPlayerPage() {
                   key={device.id}
                   className={`p-6 rounded-xl border-2 transition-all duration-200 ${
                     selectedDevice === device.code
-                      ? "border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 shadow-lg"
+                      ? "border-green-500 bg-green-50 shadow-lg"
                       : "border-gray-200 bg-gray-50 hover:border-green-300 hover:shadow-md"
                   }`}
                 >
@@ -533,6 +600,22 @@ export default function ManualPlayerPage() {
               <p className="text-sm text-gray-500 mt-2">Devices will appear here when they connect to the system</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* No Devices Message */}
+      {deviceList.length === 0 && (
+        <div className="card">
+          <div className="text-center py-8">
+            <div className="text-4xl mb-4">📱</div>
+            <p className="text-gray-600 font-medium mb-2">No Devices Registered</p>
+            <p className="text-sm text-gray-500 mb-4">
+              Register devices in the Devices section to test playback on actual displays
+            </p>
+            <p className="text-xs text-gray-400">
+              You can still use the manual player to preview media locally
+            </p>
+          </div>
         </div>
       )}
     </div>
