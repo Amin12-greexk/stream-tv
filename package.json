@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev -p 5000",
     "build": "next build",
-     "start": "next start -p 5000",
+    "start": "next start -p 5000",
     "lint": "eslint",
     "db:seed": "tsx prisma/seed.ts"
   },
@@ -31,6 +31,7 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/bcrypt": "^6.0.0",
+    "@types/mime-types": "^3.0.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

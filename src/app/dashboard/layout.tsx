@@ -1,7 +1,5 @@
-// ===== 3. UPDATED DASHBOARD LAYOUT =====
-// src/app/(dashboard)/layout.tsx
 "use client";
-import { ReactNode, JSX } from "react";
+import { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 
@@ -16,6 +14,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     { label: "Devices", path: "/dashboard/devices" },
     { label: "Groups", path: "/dashboard/groups" },
     { label: "Schedules", path: "/dashboard/schedules" },
+    // Menambahkan item baru untuk Manual Player
+    { label: "Manual Player", path: "/dashboard/manual-player" },
     { label: "Logs", path: "/dashboard/logs" },
   ];
 
@@ -34,7 +34,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             </div>
             <h1 className="text-xl font-bold text-gray-900">TV TEI Dashboard</h1>
           </div>
-          <button 
+          <button
             onClick={handleLogout}
             className="text-sm text-gray-600 hover:text-green-600 font-medium underline transition"
           >

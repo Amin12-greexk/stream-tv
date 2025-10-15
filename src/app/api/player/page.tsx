@@ -75,7 +75,6 @@ export default function PlayerPage() {
           src={current.url}
           className={`${fitClass} w-full h-full`}
           autoPlay
-          muted
           playsInline
           onEnded={() => setIdx((i) => (i + 1) % items.length)}
           onError={() => setIdx((i) => (i + 1) % items.length)}
