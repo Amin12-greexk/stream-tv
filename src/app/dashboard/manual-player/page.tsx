@@ -1,7 +1,7 @@
-// File: src/app/dashboard/manual-player/page.tsx - TYPESCRIPT SAFE VERSION
+// File: src/app/dashboard/manual-player/page.tsx - FIXED VERSION
 
 "use client";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 
 type Media = {
   id: string;
@@ -36,12 +36,10 @@ export default function ManualPlayerPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load media and devices with proper error handling
   async function loadData() {
     setLoading(true);
     setError(null);
     
-    // Load media files
     let allMedia: Media[] = [];
     try {
       const mediaRes = await fetch("/api/media", { cache: "no-store" });
@@ -55,7 +53,6 @@ export default function ManualPlayerPage() {
     }
     setMediaList(allMedia);
 
-    // Load devices
     let devices: Device[] = [];
     try {
       const deviceRes = await fetch("/api/devices", { cache: "no-store" });
@@ -69,7 +66,6 @@ export default function ManualPlayerPage() {
     }
     setDeviceList(devices);
 
-    // Set error message if both failed but don't block usage
     if (allMedia.length === 0 && devices.length === 0) {
       setError("Unable to load media and devices. You can still use the manual player if you upload media files.");
     }
@@ -81,18 +77,24 @@ export default function ManualPlayerPage() {
     loadData();
   }, []);
 
-  // Update video volume when volume state changes
+  // Update video volume when it changes
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = volume;
     }
   }, [volume]);
 
+  // CRITICAL FIX: Stop playback when media changes
+  useEffect(() => {
+    // Stop any playing media when selection changes
+    handleStop();
+  }, [selectedMedia?.id]);
+
   function isDeviceOnline(lastSeen: string | null): boolean {
     if (!lastSeen) return false;
     const lastSeenTime = new Date(lastSeen).getTime();
     const now = Date.now();
-    return now - lastSeenTime < 60000; // Online if seen in last 60 seconds
+    return now - lastSeenTime < 60000;
   }
 
   function getPlayerUrl(deviceCode: string): string {
@@ -100,17 +102,26 @@ export default function ManualPlayerPage() {
     return `${baseUrl}/player?device=${deviceCode}`;
   }
 
-  function handleMediaSelect(mediaId: string) {
+  const handleMediaSelect = useCallback((mediaId: string) => {
     const media = mediaList.find(m => m.id === mediaId);
     setSelectedMedia(media || null);
     setIsPlaying(false);
+    
+    // Clear any timers
     if (imageTimerRef.current) {
       clearTimeout(imageTimerRef.current);
       imageTimerRef.current = null;
     }
-  }
 
-  function handlePlay() {
+    // Stop video if playing
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+      videoRef.current.load(); // Force reload
+    }
+  }, [mediaList]);
+
+  const handlePlay = useCallback(() => {
     if (!selectedMedia) {
       alert("Please select a media file first");
       return;
@@ -120,6 +131,8 @@ export default function ManualPlayerPage() {
 
     if (selectedMedia.type === "video") {
       if (videoRef.current) {
+        // Force reload video source
+        videoRef.current.load();
         videoRef.current.play().catch(err => {
           console.error("Video play error:", err);
           setIsPlaying(false);
@@ -127,7 +140,6 @@ export default function ManualPlayerPage() {
         });
       }
     } else if (selectedMedia.type === "image") {
-      // For images, start timer based on duration
       if (imageTimerRef.current) {
         clearTimeout(imageTimerRef.current);
       }
@@ -136,16 +148,16 @@ export default function ManualPlayerPage() {
         const startImageLoop = () => {
           imageTimerRef.current = setTimeout(() => {
             if (isPlaying) {
-              startImageLoop(); // Continue loop
+              startImageLoop();
             }
           }, imageDuration * 1000);
         };
         startImageLoop();
       }
     }
-  }
+  }, [selectedMedia, isLooping, imageDuration, isPlaying]);
 
-  function handlePause() {
+  const handlePause = useCallback(() => {
     setIsPlaying(false);
     
     if (selectedMedia?.type === "video" && videoRef.current) {
@@ -156,12 +168,12 @@ export default function ManualPlayerPage() {
       clearTimeout(imageTimerRef.current);
       imageTimerRef.current = null;
     }
-  }
+  }, [selectedMedia]);
 
-  function handleStop() {
+  const handleStop = useCallback(() => {
     setIsPlaying(false);
     
-    if (selectedMedia?.type === "video" && videoRef.current) {
+    if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.currentTime = 0;
     }
@@ -170,9 +182,9 @@ export default function ManualPlayerPage() {
       clearTimeout(imageTimerRef.current);
       imageTimerRef.current = null;
     }
-  }
+  }, []);
 
-  const handleVideoEnded = () => {
+  const handleVideoEnded = useCallback(() => {
     if (isLooping) {
       if (videoRef.current) {
         videoRef.current.currentTime = 0;
@@ -184,18 +196,18 @@ export default function ManualPlayerPage() {
     } else {
       setIsPlaying(false);
     }
-  };
+  }, [isLooping]);
 
-  const handleVideoError = () => {
+  const handleVideoError = useCallback(() => {
     console.error("Video load error");
     setIsPlaying(false);
     alert("Failed to load video. Please check the file format and try again.");
-  };
+  }, []);
 
-  const handleImageError = () => {
+  const handleImageError = useCallback(() => {
     console.error("Image load error");
     alert("Failed to load image. Please check the file format and try again.");
-  };
+  }, []);
 
   const fitClass =
     displayFit === "cover" ? "object-cover" :
@@ -477,6 +489,7 @@ export default function ManualPlayerPage() {
             <>
               {selectedMedia.type === "image" ? (
                 <img
+                  key={selectedMedia.id}
                   src={`/api/stream/${selectedMedia.filename}`}
                   className={`${fitClass} w-full h-full`}
                   alt={selectedMedia.title}
@@ -487,12 +500,14 @@ export default function ManualPlayerPage() {
                   ref={videoRef}
                   key={selectedMedia.id}
                   className={`${fitClass} w-full h-full`}
-                  src={`/api/stream/${selectedMedia.filename}`}
                   onEnded={handleVideoEnded}
                   onError={handleVideoError}
                   controls
                   loop={isLooping}
-                />
+                >
+                  <source src={`/api/stream/${selectedMedia.filename}`} type={selectedMedia.mime} />
+                  Your browser does not support the video tag.
+                </video>
               )}
               
               {/* Playback Status Indicator */}
@@ -618,6 +633,21 @@ export default function ManualPlayerPage() {
           </div>
         </div>
       )}
+
+      {/* Tips Section */}
+      <div className="card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <span>💡</span>
+          Manual Player Tips
+        </h3>
+        <div className="space-y-2 text-sm text-gray-700">
+          <p>• <strong>Video switching:</strong> The player automatically stops when you select a new media file</p>
+          <p>• <strong>Controls:</strong> Video controls are built-in for easier testing</p>
+          <p>• <strong>Loop mode:</strong> Enable loop to test continuous playback</p>
+          <p>• <strong>Device preview:</strong> Select a device to get its player URL for testing on actual hardware</p>
+          <p>• <strong>Volume control:</strong> Adjust volume before playing (video only)</p>
+        </div>
+      </div>
     </div>
   );
 }

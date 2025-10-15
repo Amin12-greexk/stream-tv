@@ -35,6 +35,7 @@ model Device {
   createdAt  DateTime     @default(now())
 
   playLogs   PlayLog[]
+  commands PlayerCommand[]
 
   @@index([groupId])
 }
@@ -127,4 +128,19 @@ model PlayLog {
   @@index([deviceId])
   @@index([mediaId])
   @@index([startedAt])
+}
+
+model PlayerCommand {
+  id         String    @id @default(cuid())
+  deviceId   String
+  command    String    // "play", "pause", "stop", "next", "previous", "volume", "seek", "fullscreen"
+  params     Json?     // { volume: 0.5 } or { index: 2 }
+  status     String    @default("pending") // "pending", "executed", "failed"
+  createdAt  DateTime  @default(now())
+  executedAt DateTime?
+  
+  device Device @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  
+  @@index([deviceId, status])
+  @@index([createdAt])
 }

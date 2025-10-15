@@ -16,6 +16,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     { label: "Schedules", path: "/dashboard/schedules", icon: "⏰" },
     { label: "Manual Player", path: "/dashboard/manual-player", icon: "🎮" },
     { label: "Logs", path: "/dashboard/logs", icon: "📊" },
+    { label: "Remote Control", path: "/dashboard/remote-control", icon: "🎮" },
   ];
 
   const handleLogout = async () => {
