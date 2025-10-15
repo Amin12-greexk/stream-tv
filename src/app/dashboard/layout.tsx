@@ -1,3 +1,4 @@
+// src/app/dashboard/layout.tsx
 "use client";
 import { ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -8,15 +9,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   const menuItems = [
-    { label: "Overview", path: "/dashboard" },
-    { label: "Media", path: "/dashboard/media" },
-    { label: "Playlists", path: "/dashboard/playlists" },
-    { label: "Devices", path: "/dashboard/devices" },
-    { label: "Groups", path: "/dashboard/groups" },
-    { label: "Schedules", path: "/dashboard/schedules" },
-    // Menambahkan item baru untuk Manual Player
-    { label: "Manual Player", path: "/dashboard/manual-player" },
-    { label: "Logs", path: "/dashboard/logs" },
+    { label: "Overview", path: "/dashboard", icon: "🏠" },
+    { label: "Media", path: "/dashboard/media", icon: "🎬" },
+    { label: "Playlists", path: "/dashboard/playlists", icon: "📋" },
+    { label: "Devices", path: "/dashboard/devices", icon: "📱" },
+    { label: "Groups", path: "/dashboard/groups", icon: "👥" },
+    { label: "Schedules", path: "/dashboard/schedules", icon: "⏰" },
+    { label: "Manual Player", path: "/dashboard/manual-player", icon: "🎮" },
+    { label: "Logs", path: "/dashboard/logs", icon: "📊" },
   ];
 
   const handleLogout = async () => {
@@ -25,41 +25,68 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <section className="min-h-screen grid grid-rows-[auto_1fr] bg-gray-50">
-      <header className="border-b bg-white shadow-sm">
+    <section className="min-h-screen bg-gradient-to-br from-green-50 via-gray-50 to-emerald-50">
+      {/* Header */}
+      <header className="bg-white border-b border-green-100 shadow-sm">
         <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-600 rounded-lg flex items-center justify-center">
-              <span className="text-xl">📺</span>
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-green-600 rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-2xl">📺</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">TV TEI Dashboard</h1>
+            <div>
+              <h1 className="text-2xl font-bold text-green-600">
+                TV TEI Dashboard
+              </h1>
+              <p className="text-sm text-gray-600">Digital Signage Management</p>
+            </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="text-sm text-gray-600 hover:text-green-600 font-medium underline transition"
-          >
-            Logout
-          </button>
+          
+          {/* User Menu */}
+          <div className="flex items-center gap-4">
+            <div className="hidden md:flex items-center gap-2 text-sm text-gray-600">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              <span>System Online</span>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-green-600 hover:bg-green-50 rounded-lg transition-colors duration-200 font-medium"
+            >
+              <span>🚪</span>
+              Logout
+            </button>
+          </div>
         </div>
+        
+        {/* Navigation */}
         <nav className="flex gap-1 px-6 pb-2 overflow-x-auto">
           {menuItems.map((item) => (
             <button
               key={item.path}
               onClick={() => router.push(item.path)}
-              className={`px-4 py-2 text-sm font-medium rounded-t transition-colors whitespace-nowrap ${
-                pathname === item.path
-                  ? "bg-green-600 text-white"
-                  : "bg-white text-gray-700 hover:bg-green-50 hover:text-green-600"
-              }`}
+              className={`nav-link ${pathname === item.path ? 'active' : ''}`}
             >
-              {item.label}
+              <span className="text-base">{item.icon}</span>
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>
       </header>
-      <div className="p-6">
-        <div className="max-w-7xl mx-auto">{children}</div>
-      </div>
+      
+      {/* Main Content */}
+      <main className="p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="card min-h-[calc(100vh-200px)]">
+            {children}
+          </div>
+        </div>
+      </main>
+      
+      {/* Footer */}
+      <footer className="text-center py-4 text-sm text-gray-500 border-t border-green-100 bg-white">
+        <div className="max-w-7xl mx-auto px-6">
+          <p>© 2025 TV TEI - Digital Signage Management System</p>
+        </div>
+      </footer>
     </section>
   );
 }
