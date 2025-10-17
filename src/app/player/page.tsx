@@ -736,7 +736,7 @@ export default function PlayerPage() {
       )}
 
       {!showControls && items.length > 1 && (
-        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-full">
+        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-xs px-3 py-1.5  rounded-full">
           {idx + 1} / {items.length}
         </div>
       )}

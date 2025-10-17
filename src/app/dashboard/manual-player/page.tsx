@@ -33,9 +33,7 @@ export default function ManualPlayerPage() {
   const [volume, setVolume] = useState(1);
   const [isLooping, setIsLooping] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [displayFit, setDisplayFit] = useState<"contain" | "cover" | "stretch">(
-    "contain"
-  );
+  const [displayFit, setDisplayFit] = useState<"contain" | "cover" | "stretch">("contain");
   const [imageDuration, setImageDuration] = useState(8);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,9 +73,7 @@ export default function ManualPlayerPage() {
     setDeviceList(devices);
 
     if (allMedia.length === 0 && devices.length === 0) {
-      setError(
-        "Unable to load media and devices. You can still use the manual player if you upload media files."
-      );
+      setError("Unable to load media and devices. You can still use the manual player if you upload media files.");
     }
 
     setLoading(false);
@@ -85,7 +81,6 @@ export default function ManualPlayerPage() {
 
   useEffect(() => {
     loadData();
-    // cleanup on unmount
     return () => {
       if (imageTimerRef.current) {
         clearTimeout(imageTimerRef.current);
@@ -99,17 +94,14 @@ export default function ManualPlayerPage() {
     };
   }, []);
 
-  // Update video volume when it changes
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.volume = volume;
     }
   }, [volume]);
 
-  // Stop playback when media changes
   useEffect(() => {
     handleStop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMedia?.id]);
 
   function isDeviceOnline(lastSeen: string | null): boolean {
@@ -120,12 +112,10 @@ export default function ManualPlayerPage() {
   }
 
   function getPlayerUrl(deviceCode: string): string {
-    const baseUrl =
-      typeof window !== "undefined" ? window.location.origin : "";
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
     return `${baseUrl}/player?device=${deviceCode}`;
   }
 
-  // Function to send media to device
   const sendMediaToDevice = useCallback(
     async (mediaId: string, deviceCode: string) => {
       if (!mediaId || !deviceCode) {
@@ -141,7 +131,6 @@ export default function ManualPlayerPage() {
         return;
       }
 
-      // Check if device is online
       if (!isDeviceOnline(device.lastSeen)) {
         const confirm = window.confirm(
           `Device "${device.name}" appears to be offline. Send anyway?`
@@ -156,7 +145,6 @@ export default function ManualPlayerPage() {
       });
 
       try {
-        // Create temporary playlist with single media item
         const tempPlaylist = {
           items: [
             {
@@ -170,12 +158,9 @@ export default function ManualPlayerPage() {
           ],
         };
 
-        // Send to device via API
         const response = await fetch(`/api/player/send-media`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             deviceCode: deviceCode,
             playlist: tempPlaylist,
@@ -189,8 +174,6 @@ export default function ManualPlayerPage() {
             status: "success",
             message: `Successfully sent "${media.title}" to "${device.name}"`,
           });
-
-          // Auto-clear success message after 3 seconds
           setTimeout(() => setSendStatus(null), 3000);
         } else {
           throw new Error(`Server error: ${response.status}`);
@@ -204,23 +187,18 @@ export default function ManualPlayerPage() {
             error instanceof Error ? error.message : "Unknown error"
           }`,
         });
-
-        // Auto-clear error message after 5 seconds
         setTimeout(() => setSendStatus(null), 5000);
       }
     },
     [mediaList, deviceList, displayFit, imageDuration]
   );
 
-  // Function to send remote command to device
   const sendRemoteCommand = useCallback(
     async (deviceCode: string, command: string, params?: any) => {
       try {
         const response = await fetch(`/api/player/remote-command`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             deviceCode: deviceCode,
             command: command,
@@ -236,9 +214,7 @@ export default function ManualPlayerPage() {
         setSendStatus({
           device: deviceCode,
           status: "success",
-          message: `Command "${command}" sent to "${
-            device?.name || deviceCode
-          }"`,
+          message: `Command "${command}" sent to "${device?.name || deviceCode}"`,
         });
 
         setTimeout(() => setSendStatus(null), 2000);
@@ -249,7 +225,6 @@ export default function ManualPlayerPage() {
           status: "error",
           message: `Failed to send command to device`,
         });
-
         setTimeout(() => setSendStatus(null), 3000);
       }
     },
@@ -262,17 +237,15 @@ export default function ManualPlayerPage() {
       setSelectedMedia(media || null);
       setIsPlaying(false);
 
-      // Clear any timers
       if (imageTimerRef.current) {
         clearTimeout(imageTimerRef.current);
         imageTimerRef.current = null;
       }
 
-      // Stop video if playing
       if (videoRef.current) {
         videoRef.current.pause();
         videoRef.current.currentTime = 0;
-        videoRef.current.load(); // Force reload
+        videoRef.current.load();
       }
     },
     [mediaList]
@@ -288,15 +261,12 @@ export default function ManualPlayerPage() {
 
     if (selectedMedia.type === "video") {
       if (videoRef.current) {
-        // Force reload video source
         videoRef.current.load();
-        videoRef.current
-          .play()
-          .catch((err) => {
-            console.error("Video play error:", err);
-            setIsPlaying(false);
-            alert("Failed to play video. Please check the file format.");
-          });
+        videoRef.current.play().catch((err) => {
+          console.error("Video play error:", err);
+          setIsPlaying(false);
+          alert("Failed to play video. Please check the file format.");
+        });
       }
     } else if (selectedMedia.type === "image") {
       if (imageTimerRef.current) {
@@ -375,495 +345,628 @@ export default function ManualPlayerPage() {
       ? "object-fill"
       : "object-contain";
 
+  const stats = {
+    totalMedia: mediaList.length,
+    videos: mediaList.filter(m => m.type === "video").length,
+    images: mediaList.filter(m => m.type === "image").length,
+    onlineDevices: deviceList.filter(d => isDeviceOnline(d.lastSeen)).length,
+  };
+
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-96">
-        <div className="text-center">
-          <div className="spinner mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading manual player...</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-12 text-center">
+          <div className="w-16 h-16 border-4 border-green-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading manual player...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="text-center">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-green-600 rounded-2xl mb-4 shadow-lg">
-          <span className="text-3xl">🎮</span>
-        </div>
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">Manual Player</h2>
-        <p className="text-gray-600 max-w-2xl mx-auto">
-          Test and preview media content, then send directly to devices. Control
-          playback, adjust settings, and monitor device status.
-        </p>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="alert-warning">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <span className="text-yellow-400">⚠️</span>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+        
+        {/* Enhanced Header */}
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6 sm:p-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                <span className="text-3xl">🎮</span>
+              </div>
+              <div className="flex-1 text-white">
+                <h1 className="text-2xl sm:text-3xl font-bold mb-1">Manual Player</h1>
+                <p className="text-green-100 text-sm sm:text-base">Test and preview media content, then send directly to devices</p>
+              </div>
             </div>
-            <div className="ml-3">
-              <p className="text-sm">{error}</p>
+          </div>
+
+          {/* Stats */}
+          <div className="p-6 border-b border-gray-200">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">📁</span>
+                  <span className="text-xs font-medium text-blue-700">MEDIA</span>
+                </div>
+                <p className="text-2xl font-bold text-blue-900">{stats.totalMedia}</p>
+                <p className="text-xs text-blue-600">Total files</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🎬</span>
+                  <span className="text-xs font-medium text-purple-700">VIDEO</span>
+                </div>
+                <p className="text-2xl font-bold text-purple-900">{stats.videos}</p>
+                <p className="text-xs text-purple-600">Video files</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-pink-50 to-pink-100 rounded-xl p-4 border border-pink-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🖼️</span>
+                  <span className="text-xs font-medium text-pink-700">IMAGE</span>
+                </div>
+                <p className="text-2xl font-bold text-pink-900">{stats.images}</p>
+                <p className="text-xs text-pink-600">Image files</p>
+              </div>
+
+              <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🟢</span>
+                  <span className="text-xs font-medium text-green-700">ONLINE</span>
+                </div>
+                <p className="text-2xl font-bold text-green-900">{stats.onlineDevices}</p>
+                <p className="text-xs text-green-600">Devices ready</p>
+              </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* Send Status Message */}
-      {sendStatus && (
-        <div
-          className={`alert ${
+        {/* Error Message */}
+        {error && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4">
+            <div className="flex items-start gap-3">
+              <span className="text-2xl">⚠️</span>
+              <div className="flex-1">
+                <h4 className="font-bold text-yellow-900 mb-1">Warning</h4>
+                <p className="text-sm text-yellow-700">{error}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Send Status Message */}
+        {sendStatus && (
+          <div className={`rounded-2xl p-4 border ${
             sendStatus.status === "success"
-              ? "alert-success"
+              ? "bg-green-50 border-green-200"
               : sendStatus.status === "error"
-              ? "alert-error"
-              : "alert-info"
-          }`}
-        >
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <span className="text-lg">
+              ? "bg-red-50 border-red-200"
+              : "bg-blue-50 border-blue-200"
+          }`}>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">
                 {sendStatus.status === "sending" && "⏳"}
                 {sendStatus.status === "success" && "✅"}
                 {sendStatus.status === "error" && "❌"}
               </span>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium">{sendStatus.message}</p>
-            </div>
-            <button
-              onClick={() => setSendStatus(null)}
-              className="ml-auto text-gray-400 hover:text-gray-600"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Control Panel */}
-      <div className="card">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-green-100">
-          <span className="text-2xl">⚙️</span>
-          <h3 className="text-xl font-semibold text-gray-900">
-            Player Controls
-          </h3>
-        </div>
-
-        {/* Media and Device Selection */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="space-y-3">
-            <label
-              htmlFor="media-select"
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700"
-            >
-              <span className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">
-                1
-              </span>
-              Select Media File
-            </label>
-            <select
-              id="media-select"
-              onChange={(e) => handleMediaSelect(e.target.value)}
-              className="form-select"
-              value={selectedMedia?.id || ""}
-            >
-              <option value="">-- Choose media file --</option>
-              {mediaList.length === 0 ? (
-                <option value="" disabled>
-                  No media files available
-                </option>
-              ) : (
-                mediaList.map((media) => (
-                  <option key={media.id} value={media.id}>
-                    {media.type === "video" ? "🎬" : "🖼️"} {media.title} (
-                    {media.type})
-                  </option>
-                ))
-              )}
-            </select>
-            {mediaList.length === 0 && (
-              <p className="text-sm text-gray-500">
-                Upload media files in the Media section to use the manual
-                player.
-              </p>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <label
-              htmlFor="device-select"
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700"
-            >
-              <span className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">
-                2
-              </span>
-              Target Device
-            </label>
-            <select
-              id="device-select"
-              value={selectedDevice}
-              onChange={(e) => setSelectedDevice(e.target.value)}
-              className="form-select"
-            >
-              <option value="">🖥️ Select device to send media</option>
-              {deviceList.length === 0 ? (
-                <option value="" disabled>
-                  No devices registered
-                </option>
-              ) : (
-                deviceList.map((device) => {
-                  const online = isDeviceOnline(device.lastSeen);
-                  return (
-                    <option key={device.id} value={device.code}>
-                      {online ? "🟢" : "🔴"} {device.name} ({device.code})
-                      {device.group && ` [${device.group.name}]`}
-                    </option>
-                  );
-                })
-              )}
-            </select>
-          </div>
-        </div>
-
-        {/* Send to Device Section */}
-        {selectedMedia && selectedDevice && (
-          <div className="mb-8 p-6 bg-blue-50 rounded-xl border border-blue-200">
-            <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-4">
-              <span className="text-xl">📤</span>
-              Send to Device
-            </h4>
-            <div className="flex flex-wrap items-center gap-4">
+              <p className={`flex-1 text-sm font-medium ${
+                sendStatus.status === "success"
+                  ? "text-green-900"
+                  : sendStatus.status === "error"
+                  ? "text-red-900"
+                  : "text-blue-900"
+              }`}>{sendStatus.message}</p>
               <button
-                onClick={() =>
-                  sendMediaToDevice(selectedMedia.id, selectedDevice)
-                }
-                disabled={sendStatus?.status === "sending"}
-                className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => setSendStatus(null)}
+                className="text-gray-400 hover:text-gray-600 font-bold"
               >
-                <span className="text-lg">📤</span>
-                {sendStatus?.status === "sending"
-                  ? "Sending..."
-                  : "Send & Play Now"}
-              </button>
-
-              <div className="text-sm text-gray-600">
-                Will send "{selectedMedia.title}" to{" "}
-                {
-                  deviceList.find((d) => d.code === selectedDevice)?.name
-                }
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Remote Control Section */}
-        {selectedDevice && (
-          <div className="mb-8 p-6 bg-purple-50 rounded-xl border border-purple-200">
-            <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-4">
-              <span className="text-xl">🎛️</span>
-              Remote Control
-            </h4>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={() => sendRemoteCommand(selectedDevice, "play")}
-                className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                ▶️ Play
-              </button>
-              <button
-                onClick={() => sendRemoteCommand(selectedDevice, "pause")}
-                className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                ⏸️ Pause
-              </button>
-              <button
-                onClick={() => sendRemoteCommand(selectedDevice, "stop")}
-                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                ⏹️ Stop
-              </button>
-              <button
-                onClick={() => sendRemoteCommand(selectedDevice, "next")}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                ⏭️ Next
-              </button>
-              <button
-                onClick={() => sendRemoteCommand(selectedDevice, "previous")}
-                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                ⏮️ Previous
-              </button>
-              <button
-                onClick={() => sendRemoteCommand(selectedDevice, "mute")}
-                className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-              >
-                🔇 Mute
+                ✕
               </button>
             </div>
           </div>
         )}
 
-        {/* Display Settings */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="space-y-3">
-            <label
-              htmlFor="display-fit"
-              className="flex items-center gap-2 text-sm font-semibold text-gray-700"
-            >
-              <span className="w-6 h-6 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-xs font-bold">
-                3
-              </span>
-              Display Mode
-            </label>
-            <select
-              id="display-fit"
-              value={displayFit}
-              onChange={(e) =>
-                setDisplayFit(
-                  e.target.value as "contain" | "cover" | "stretch"
-                )
-              }
-              className="form-select"
-            >
-              <option value="contain">📐 Contain (fit inside)</option>
-              <option value="cover">🔳 Cover (fill screen)</option>
-              <option value="stretch">↔️ Stretch (may distort)</option>
-            </select>
-          </div>
-
-          {selectedMedia?.type === "image" && (
-            <div className="space-y-3">
-              <label
-                htmlFor="image-duration"
-                className="flex items-center gap-2 text-sm font-semibold text-gray-700"
-              >
-                <span className="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-bold">
-                  ⏱️
-                </span>
-                Image Duration
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  id="image-duration"
-                  type="number"
-                  min={1}
-                  max={300}
-                  value={imageDuration}
-                  onChange={(e) => setImageDuration(Number(e.target.value))}
-                  className="form-input flex-1"
-                />
-                <span className="text-sm text-gray-600 font-medium">
-                  seconds
-                </span>
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+          
+          {/* Left Column - Media Player */}
+          <div className="xl:col-span-2 space-y-6">
+            
+            {/* Media Player Area */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-4">
+                <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                  <span>📺</span>
+                  Preview Player
+                </h3>
               </div>
-            </div>
-          )}
+              
+              <div className="bg-gray-900 aspect-video w-full relative">
+                {selectedMedia ? (
+                  <>
+                    {selectedMedia.type === "image" ? (
+                      <img
+                        key={selectedMedia.id}
+                        src={`/api/stream/${selectedMedia.filename}`}
+                        className={`${fitClass} w-full h-full`}
+                        alt={selectedMedia.title}
+                        onError={handleImageError}
+                      />
+                    ) : (
+                      <video
+                        ref={videoRef}
+                        key={selectedMedia.id}
+                        className={`${fitClass} w-full h-full`}
+                        onEnded={handleVideoEnded}
+                        onError={handleVideoError}
+                        controls
+                        loop={isLooping}
+                      >
+                        <source
+                          src={`/api/stream/${selectedMedia.filename}`}
+                          type={selectedMedia.mime}
+                        />
+                        Your browser does not support the video tag.
+                      </video>
+                    )}
 
-          {selectedMedia?.type === "video" && (
-            <div className="space-y-3">
-              <label
-                htmlFor="volume-slider"
-                className="flex items-center gap-2 text-sm font-semibold text-gray-700"
-              >
-                <span className="w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-xs font-bold">
-                  🔊
-                </span>
-                Volume: {Math.round(volume * 100)}%
-              </label>
-              <input
-                id="volume-slider"
-                type="range"
-                min={0}
-                max={1}
-                step={0.05}
-                value={volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="w-full"
-              />
-            </div>
-          )}
-        </div>
+                    {/* Playback Status */}
+                    <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/70 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+                      <div className={`w-2 h-2 rounded-full ${isPlaying ? "bg-green-500 animate-pulse" : "bg-gray-400"}`}></div>
+                      <span>{isPlaying ? "Playing" : "Paused"}</span>
+                    </div>
 
-        {/* Loop Control */}
-        <div className="flex items-center gap-3 mb-8 p-4 bg-green-50 rounded-xl border border-green-200">
-          <input
-            id="loop-checkbox"
-            type="checkbox"
-            checked={isLooping}
-            onChange={(e) => setIsLooping(e.target.checked)}
-            className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 rounded"
-          />
-          <label
-            htmlFor="loop-checkbox"
-            className="flex items-center gap-2 text-sm font-semibold text-gray-700"
-          >
-            <span className="text-lg">🔄</span>
-            Loop playback continuously
-          </label>
-        </div>
-
-        {/* Local Playback Controls */}
-        <div className="pt-6 border-t border-green-100">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4">
-            Local Preview Controls
-          </h4>
-          <div className="flex flex-wrap items-center gap-4">
-            <button
-              onClick={handlePlay}
-              disabled={!selectedMedia || isPlaying}
-              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className="text-lg">▶️</span>
-              Play
-            </button>
-
-            <button
-              onClick={handlePause}
-              disabled={!selectedMedia || !isPlaying}
-              className="bg-yellow-500 hover:bg-yellow-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center gap-2"
-            >
-              <span className="text-lg">⏸️</span>
-              Pause
-            </button>
-
-            <button
-              onClick={handleStop}
-              disabled={!selectedMedia}
-              className="bg-red-500 hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center gap-2"
-            >
-              <span className="text-lg">⏹️</span>
-              Stop
-            </button>
-
-            {selectedDevice && (
-              <a
-                href={getPlayerUrl(selectedDevice)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
-              >
-                <span className="text-lg">🔗</span>
-                Open on Device
-              </a>
-            )}
-
-            <button
-              onClick={loadData}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
-            >
-              <span className="text-lg">🔄</span>
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {/* Selected Media Info */}
-        {selectedMedia && (
-          <div className="mt-8 p-6 bg-blue-50 rounded-xl border border-blue-200">
-            <h4 className="flex items-center gap-2 font-semibold text-gray-900 mb-4">
-              <span className="text-xl">📋</span>
-              Selected Media Information
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700">Title:</span>
-                  <span className="text-gray-900">{selectedMedia.title}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700">Type:</span>
-                  <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                    {selectedMedia.type === "video" ? "🎬" : "🖼️"}
-                    {selectedMedia.type}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-gray-700">Format:</span>
-                  <span className="text-gray-900">{selectedMedia.mime}</span>
-                </div>
-                {selectedMedia.duration && (
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-700">Duration:</span>
-                    <span className="text-gray-900">
-                      {Math.round(selectedMedia.duration)}s
-                    </span>
+                    {/* Media Info */}
+                    <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+                      {selectedMedia.type === "video" ? "🎬" : "🖼️"} {selectedMedia.title}
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-400">
+                    <div className="text-center p-8">
+                      <div className="text-6xl mb-4">🎬</div>
+                      <h3 className="text-xl font-bold text-gray-300 mb-2">No Media Selected</h3>
+                      <p className="text-gray-500 text-sm">
+                        {mediaList.length === 0
+                          ? "Upload media files to start using the player"
+                          : "Select a media file from the control panel"}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* Media Player Area */}
-      <div className="card overflow-hidden">
-        <div className="bg-gray-900 aspect-video w-full relative">
-          {selectedMedia ? (
-            <>
-              {selectedMedia.type === "image" ? (
-                <img
-                  key={selectedMedia.id}
-                  src={`/api/stream/${selectedMedia.filename}`}
-                  className={`${fitClass} w-full h-full`}
-                  alt={selectedMedia.title}
-                  onError={handleImageError}
-                />
-              ) : (
-                <video
-                  ref={videoRef}
-                  key={selectedMedia.id}
-                  className={`${fitClass} w-full h-full`}
-                  onEnded={handleVideoEnded}
-                  onError={handleVideoError}
-                  controls
-                  loop={isLooping}
-                >
-                  <source
-                    src={`/api/stream/${selectedMedia.filename}`}
-                    type={selectedMedia.mime}
-                  />
-                  Your browser does not support the video tag.
-                </video>
-              )}
-
-              {/* Playback Status Indicator */}
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm font-medium">
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    isPlaying ? "bg-green-500 animate-pulse" : "bg-gray-400"
-                  }`}
-                ></div>
-                <span>{isPlaying ? "Playing" : "Paused"}</span>
+            {/* Local Playback Controls */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-violet-500 to-purple-600 p-4">
+                <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                  <span>🎛️</span>
+                  Local Preview Controls
+                </h3>
               </div>
+              
+              <div className="p-6">
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={handlePlay}
+                    disabled={!selectedMedia || isPlaying}
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center gap-2"
+                  >
+                    <span className="text-lg">▶️</span>
+                    Play
+                  </button>
 
-              {/* Media Info Overlay */}
-              <div className="absolute bottom-4 left-4 bg-black bg-opacity-70 text-white px-4 py-2 rounded-full text-sm">
-                {selectedMedia.type === "video" ? "🎬" : "🖼️"}{" "}
-                {selectedMedia.title}
-              </div>
-            </>
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <div className="text-8xl mb-6">🎬</div>
-                <p className="text-xl font-medium mb-2">No Media Selected</p>
-                <p className="text-gray-500">
-                  {mediaList.length === 0
-                    ? "Upload media files in the Media section to start using the manual player."
-                    : "Choose a media file from the dropdown above to preview it here."}
-                </p>
+                  <button
+                    onClick={handlePause}
+                    disabled={!selectedMedia || !isPlaying}
+                    className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center gap-2"
+                  >
+                    <span className="text-lg">⏸️</span>
+                    Pause
+                  </button>
+
+                  <button
+                    onClick={handleStop}
+                    disabled={!selectedMedia}
+                    className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center gap-2"
+                  >
+                    <span className="text-lg">⏹️</span>
+                    Stop
+                  </button>
+
+                  <button
+                    onClick={loadData}
+                    className="bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                  >
+                    <span className="text-lg">🔄</span>
+                    Refresh
+                  </button>
+
+                  {selectedDevice && (
+                    <a
+                      href={getPlayerUrl(selectedDevice)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white px-6 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center gap-2"
+                    >
+                      <span className="text-lg">🔗</span>
+                      Open Device
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
-          )}
+
+            {/* Selected Media Info */}
+            {selectedMedia && (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-cyan-500 to-blue-600 p-4">
+                  <h4 className="font-bold text-lg text-white flex items-center gap-2">
+                    <span>📋</span>
+                    Media Information
+                  </h4>
+                </div>
+                
+                <div className="p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <span className="text-lg">📝</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Title</p>
+                          <p className="font-bold text-gray-900">{selectedMedia.title}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <span className="text-lg">{selectedMedia.type === "video" ? "🎬" : "🖼️"}</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Type</p>
+                          <p className="font-bold text-gray-900 capitalize">{selectedMedia.type}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                          <span className="text-lg">📄</span>
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500 font-medium">Format</p>
+                          <p className="font-bold text-gray-900">{selectedMedia.mime}</p>
+                        </div>
+                      </div>
+                      
+                      {selectedMedia.duration && (
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <span className="text-lg">⏱️</span>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">Duration</p>
+                            <p className="font-bold text-gray-900">{Math.round(selectedMedia.duration)}s</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column - Controls */}
+          <div className="xl:col-span-1 space-y-6">
+            
+            {/* Media Selection */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 p-4">
+                <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                  <span>📁</span>
+                  Select Media
+                </h3>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <select
+                  onChange={(e) => handleMediaSelect(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
+                  value={selectedMedia?.id || ""}
+                >
+                  <option value="">Choose media file...</option>
+                  {mediaList.length === 0 ? (
+                    <option value="" disabled>No media available</option>
+                  ) : (
+                    mediaList.map((media) => (
+                      <option key={media.id} value={media.id}>
+                        {media.type === "video" ? "🎬" : "🖼️"} {media.title}
+                      </option>
+                    ))
+                  )}
+                </select>
+                
+                {mediaList.length === 0 && (
+                  <div className="text-center py-4 text-sm text-gray-500">
+                    <p className="mb-1">📤 No media files found</p>
+                    <p>Upload files in the Media section</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Device Selection */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-teal-500 to-cyan-600 p-4">
+                <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                  <span>📱</span>
+                  Target Device
+                </h3>
+              </div>
+              
+              <div className="p-6 space-y-4">
+                <select
+                  value={selectedDevice}
+                  onChange={(e) => setSelectedDevice(e.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-teal-500 focus:border-transparent font-medium"
+                >
+                  <option value="">Select device...</option>
+                  {deviceList.length === 0 ? (
+                    <option value="" disabled>No devices registered</option>
+                  ) : (
+                    deviceList.map((device) => {
+                      const online = isDeviceOnline(device.lastSeen);
+                      return (
+                        <option key={device.id} value={device.code}>
+                          {online ? "🟢" : "🔴"} {device.name} ({device.code})
+                          {device.group && ` [${device.group.name}]`}
+                        </option>
+                      );
+                    })
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {/* Send to Device */}
+            {selectedMedia && selectedDevice && (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-orange-500 to-red-600 p-4">
+                  <h4 className="font-bold text-lg text-white flex items-center gap-2">
+                    <span>📤</span>
+                    Send to Device
+                  </h4>
+                </div>
+                
+                <div className="p-6">
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-xl p-4 border border-orange-200">
+                      <p className="text-sm text-gray-700 mb-3">
+                        <strong>Media:</strong> {selectedMedia.title}
+                      </p>
+                      <p className="text-sm text-gray-700">
+                        <strong>Device:</strong> {deviceList.find((d) => d.code === selectedDevice)?.name}
+                      </p>
+                    </div>
+                    
+                    <button
+                      onClick={() => sendMediaToDevice(selectedMedia.id, selectedDevice)}
+                      disabled={sendStatus?.status === "sending"}
+                      className="w-full bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed text-white px-6 py-4 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none flex items-center justify-center gap-2"
+                    >
+                      <span className="text-xl">📤</span>
+                      {sendStatus?.status === "sending" ? "Sending..." : "Send & Play Now"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Remote Control */}
+            {selectedDevice && (
+              <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+                <div className="bg-gradient-to-r from-purple-500 to-pink-600 p-4">
+                  <h4 className="font-bold text-lg text-white flex items-center gap-2">
+                    <span>🎛️</span>
+                    Remote Control
+                  </h4>
+                </div>
+                
+                <div className="p-6">
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => sendRemoteCommand(selectedDevice, "play")}
+                      className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-4 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                      <span>▶️</span>
+                      Play
+                    </button>
+                    
+                    <button
+                      onClick={() => sendRemoteCommand(selectedDevice, "pause")}
+                      className="bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white px-4 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                      <span>⏸️</span>
+                      Pause
+                    </button>
+                    
+                    <button
+                      onClick={() => sendRemoteCommand(selectedDevice, "stop")}
+                      className="bg-gradient-to-r from-red-500 to-pink-600 hover:from-red-600 hover:to-pink-700 text-white px-4 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                      <span>⏹️</span>
+                      Stop
+                    </button>
+                    
+                    <button
+                      onClick={() => sendRemoteCommand(selectedDevice, "mute")}
+                      className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white px-4 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                      <span>🔇</span>
+                      Mute
+                    </button>
+                    
+                    <button
+                      onClick={() => sendRemoteCommand(selectedDevice, "previous")}
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                      <span>⏮️</span>
+                      Prev
+                    </button>
+                    
+                    <button
+                      onClick={() => sendRemoteCommand(selectedDevice, "next")}
+                      className="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                    >
+                      <span>⏭️</span>
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Display Settings */}
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="bg-gradient-to-r from-pink-500 to-rose-600 p-4">
+                <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                  <span>⚙️</span>
+                  Display Settings
+                </h3>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                <div>
+                  <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                    <span>📐</span>
+                    Display Mode
+                  </label>
+                  <select
+                    value={displayFit}
+                    onChange={(e) => setDisplayFit(e.target.value as "contain" | "cover" | "stretch")}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent font-medium"
+                  >
+                    <option value="contain">📐 Contain (fit inside)</option>
+                    <option value="cover">🔳 Cover (fill screen)</option>
+                    <option value="stretch">↔️ Stretch (may distort)</option>
+                  </select>
+                </div>
+
+                {selectedMedia?.type === "image" && (
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                      <span>⏱️</span>
+                      Image Duration: {imageDuration}s
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="range"
+                        min={1}
+                        max={300}
+                        value={imageDuration}
+                        onChange={(e) => setImageDuration(Number(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-pink-600"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>1s</span>
+                        <span>300s</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {selectedMedia?.type === "video" && (
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-bold text-gray-700 mb-3">
+                      <span>🔊</span>
+                      Volume: {Math.round(volume * 100)}%
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={volume}
+                        onChange={(e) => setVolume(parseFloat(e.target.value))}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-pink-600"
+                      />
+                      <div className="flex justify-between text-xs text-gray-500">
+                        <span>0%</span>
+                        <span>100%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="pt-4 border-t border-gray-200">
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={isLooping}
+                      onChange={(e) => setIsLooping(e.target.checked)}
+                      className="h-5 w-5 text-pink-600 focus:ring-pink-500 border-gray-300 rounded cursor-pointer"
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">🔄</span>
+                      <span className="text-sm font-bold text-gray-700 group-hover:text-pink-600 transition-colors">
+                        Loop playback continuously
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tips Section */}
+        <div className="bg-gradient-to-r from-violet-50 to-purple-50 rounded-2xl border border-violet-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-500 to-purple-600 p-4">
+            <div className="flex items-center gap-3 text-white">
+              <span className="text-2xl">💡</span>
+              <h4 className="font-bold text-lg">Tips for Manual Player</h4>
+            </div>
+          </div>
+          
+          <div className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-lg">🎬</span>
+                  <div>
+                    <p><strong>Preview first:</strong> Test your media locally before sending to devices</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-lg">📱</span>
+                  <div>
+                    <p><strong>Device status:</strong> Green indicator means device is online and ready</p>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="text-lg">🎛️</span>
+                  <div>
+                    <p><strong>Remote control:</strong> Send commands to devices in real-time</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-lg">⚙️</span>
+                  <div>
+                    <p><strong>Display modes:</strong> Adjust how content fits on different screen sizes</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
