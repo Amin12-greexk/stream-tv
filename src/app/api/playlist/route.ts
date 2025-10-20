@@ -1,10 +1,19 @@
-// ===== src/app/api/playlists/route.ts =====
+// ===== src/app/api/playlist/route.ts =====
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+
+  // Jika ada query param `count=true`, kembalikan jumlah total
+  if (searchParams.get("count") === "true") {
+    const count = await prisma.playlist.count();
+    return NextResponse.json({ count });
+  }
+
+  // Logika asli untuk mengambil semua data playlist
   const playlists = await prisma.playlist.findMany({
     include: {
       items: {

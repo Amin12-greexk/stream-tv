@@ -1,4 +1,4 @@
-// src/app/api/media/route.ts
+// src/app/api/media/route.ts - DENGAN LOGIKA COUNT
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import fs from "fs";
@@ -6,8 +6,17 @@ import path from "path";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const list = await prisma.media.findMany({ 
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+
+  // Jika ada query param `count=true`, kembalikan jumlah total
+  if (searchParams.get("count") === "true") {
+    const count = await prisma.media.count();
+    return NextResponse.json({ count });
+  }
+
+  // Jika tidak, kembalikan daftar lengkap seperti biasa
+  const list = await prisma.media.findMany({
     orderBy: { createdAt: "desc" },
     include: { mediaTags: true }
   });
@@ -22,7 +31,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const title = (formData.get("title") as string) || "Media";
-    
+
     if (!file) {
       return NextResponse.json({ error: "No file" }, { status: 400 });
     }
@@ -34,7 +43,7 @@ export async function POST(req: NextRequest) {
     await fs.promises.writeFile(full, bytes);
 
     const type = file.type.startsWith("video") ? "video" : "image";
-    
+
     // Get duration for video files (simplified - you may want to use ffprobe)
     let duration = null;
     if (type === "video") {
@@ -75,7 +84,7 @@ export async function DELETE(req: NextRequest) {
     // Delete related records first
     await prisma.mediaTag.deleteMany({ where: { mediaId: id } });
     await prisma.playlistItem.deleteMany({ where: { mediaId: id } });
-    
+
     // Delete media record
     await prisma.media.delete({ where: { id } });
 

@@ -171,7 +171,7 @@ export default function PlayerPage() {
       }
     };
 
-    const interval = setInterval(pollCommands, 2000);
+    const interval = setInterval(pollCommands, 7000); // PERUBAHAN DI SINI
     return () => clearInterval(interval);
   }, [device, remoteControlEnabled, executeCommand]);
 
@@ -384,7 +384,7 @@ export default function PlayerPage() {
     };
 
     sendHeartbeat();
-    const heartbeatInterval = setInterval(sendHeartbeat, 30000);
+    const heartbeatInterval = setInterval(sendHeartbeat, 45000); // PERUBAHAN DI SINI
     return () => clearInterval(heartbeatInterval);
   }, [device]);
 

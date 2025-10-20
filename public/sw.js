@@ -1,36 +1,17 @@
-const MEDIA_CACHE = "media-v1";
-const JSON_CACHE = "json-v1";
-
-self.addEventListener("install", (e) => {
-  self.skipWaiting();
-});
-
-self.addEventListener("activate", (e) => {
-  e.waitUntil(self.clients.claim());
-});
-
+// public/sw.js
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
 
-  // Cache media aggressively
+  // Don't cache video streams, always network
   if (url.pathname.startsWith("/api/stream/")) {
-    e.respondWith(
-      caches.open(MEDIA_CACHE).then(async (cache) => {
-        const cached = await cache.match(e.request);
-        const fetchP = fetch(e.request).then((res) => {
-          if (res.ok) cache.put(e.request, res.clone());
-          return res;
-        });
-        return cached || fetchP;
-      })
-    );
+    e.respondWith(fetch(e.request)); // no cache
     return;
   }
 
-  // SWR for playlist JSON
+  // keep your JSON SWR if you like
   if (url.pathname.startsWith("/api/player/playlist")) {
     e.respondWith(
-      caches.open(JSON_CACHE).then(async (cache) => {
+      caches.open("json-v1").then(async (cache) => {
         const fetchP = fetch(e.request).then((res) => {
           if (res.ok) cache.put(e.request, res.clone());
           return res;

@@ -4,9 +4,18 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+
+  // Jika ada query param `count=true`, kembalikan jumlah total
+  if (searchParams.get("count") === "true") {
+    const count = await prisma.deviceGroup.count();
+    return NextResponse.json({ count });
+  }
+
+  // Logika asli untuk mengambil semua data grup
   const groups = await prisma.deviceGroup.findMany({
-    include: { 
+    include: {
       devices: true,
       assignments: {
         include: {

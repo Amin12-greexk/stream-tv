@@ -1,4 +1,4 @@
-// src/app/(dashboard)/page.tsx
+// src/app/dashboard/page.tsx - PERBAIKAN LENGKAP
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -30,53 +30,58 @@ export default function DashboardHome() {
       try {
         setError(null);
         
-        // Fetch with proper error handling
-        const fetchWithErrorHandling = async (url: string) => {
-          const response = await fetch(url, { cache: "no-store" });
+        // Fungsi untuk mengambil data atau hanya jumlahnya
+        const fetchAPI = async (url: string, fetchCountOnly = false) => {
+          const fullUrl = fetchCountOnly ? `${url}?count=true` : url;
+          const response = await fetch(fullUrl, { cache: "no-store" });
           if (!response.ok) {
-            throw new Error(`Failed to fetch ${url}: ${response.status}`);
+            throw new Error(`Failed to fetch ${fullUrl}: ${response.status}`);
           }
-          const text = await response.text();
-          try {
-            return JSON.parse(text);
-          } catch {
-            console.error(`Invalid JSON from ${url}:`, text.substring(0, 100));
-            return [];
-          }
+          return response.json();
         };
 
-        const [media, playlists, devices, groups, assignments] = await Promise.all([
-          fetchWithErrorHandling("/api/media"),
-          fetchWithErrorHandling("/api/playlist"),
-          fetchWithErrorHandling("/api/devices"),
-          fetchWithErrorHandling("/api/groups"),
-          fetchWithErrorHandling("/api/assignments"),
+        const [
+          mediaStats, 
+          playlistStats, 
+          devices, // Perangkat tetap diambil utuh untuk status online
+          groupStats, 
+          assignmentStats
+        ] = await Promise.all([
+          fetchAPI("/api/media", true),
+          fetchAPI("/api/playlist", true),
+          fetchAPI("/api/devices"),
+          fetchAPI("/api/groups", true),
+          fetchAPI("/api/assignments", true),
         ]);
 
         const onlineCount = devices.filter((d: any) => {
           if (!d.lastSeen) return false;
           const lastSeen = new Date(d.lastSeen);
+          // Online jika terlihat dalam 60 detik terakhir
           return Date.now() - lastSeen.getTime() < 60000;
         }).length;
 
         setStats({
-          mediaCount: media.length,
-          playlistCount: playlists.length,
+          mediaCount: mediaStats.count,
+          playlistCount: playlistStats.count,
           deviceCount: devices.length,
           onlineDevices: onlineCount,
-          groupCount: groups.length,
-          assignmentCount: assignments.length,
+          groupCount: groupStats.count,
+          assignmentCount: assignmentStats.count,
         });
-      } catch (error) {
+
+      } catch (err) {
+        const error = err as Error;
         console.error("Failed to load stats:", error);
-        setError("Gagal memuat data dashboard. Silakan refresh halaman.");
+        setError(`Gagal memuat data dashboard. Silakan refresh halaman. (${error.message})`);
       } finally {
         setLoading(false);
       }
     }
 
     loadStats();
-    const interval = setInterval(loadStats, 30000);
+    // Interval bisa tetap 30 detik karena request jauh lebih ringan
+    const interval = setInterval(loadStats, 30000); 
     return () => clearInterval(interval);
   }, []);
 
