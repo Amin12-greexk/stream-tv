@@ -49,6 +49,8 @@ model Media {
   duration      Int?          // seconds for video
   sizeBytes     Int?
   createdAt     DateTime      @default(now())
+  hlsPath       String?       // Path ke file master .m3u8
+  thumbnailPath String?       // Path ke thumbnail yang di-generate
 
   playlistItems PlaylistItem[]
   playLogs      PlayLog[]
