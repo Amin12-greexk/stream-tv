@@ -3,6 +3,13 @@
 "use client";
 import { useEffect, useState } from "react";
 
+type MediaTag = {
+  id: string;
+  tag: string;
+};
+
+type FilterType = "all" | "image" | "video";
+
 type Media = {
   id: string;
   title: string;
@@ -12,7 +19,7 @@ type Media = {
   duration: number | null;
   sizeBytes: number | null;
   createdAt: string;
-  mediaTags: any[];
+  mediaTags: MediaTag[];
 };
 
 export default function MediaPage() {
@@ -23,7 +30,13 @@ export default function MediaPage() {
   const [uploadTitle, setUploadTitle] = useState("");
   const [dragActive, setDragActive] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "image" | "video">("all");
+  const [filterType, setFilterType] = useState<FilterType>("all");
+
+  const filters: { key: FilterType; label: string; icon: string }[] = [
+    { key: "all", label: "Semua", icon: "📁" },
+    { key: "image", label: "Gambar", icon: "🖼️" },
+    { key: "video", label: "Video", icon: "🎥" },
+  ];
 
   async function load() {
     setLoading(true);
@@ -227,14 +240,10 @@ export default function MediaPage() {
               </div>
               
               <div className="flex gap-2">
-                {[
-                  { key: "all", label: "Semua", icon: "📁" },
-                  { key: "image", label: "Gambar", icon: "🖼️" },
-                  { key: "video", label: "Video", icon: "🎥" }
-                ].map((filter) => (
+                {filters.map((filter) => (
                   <button
                     key={filter.key}
-                    onClick={() => setFilterType(filter.key as any)}
+                    onClick={() => setFilterType(filter.key)}
                     className={`flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
                       filterType === filter.key
                         ? 'bg-purple-600 text-white shadow-lg'

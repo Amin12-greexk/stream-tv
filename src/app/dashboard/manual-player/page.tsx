@@ -194,7 +194,7 @@ export default function ManualPlayerPage() {
   );
 
   const sendRemoteCommand = useCallback(
-    async (deviceCode: string, command: string, params?: any) => {
+    async (deviceCode: string, command: string, params?: Record<string, unknown>) => {
       try {
         const response = await fetch(`/api/player/remote-command`, {
           method: "POST",

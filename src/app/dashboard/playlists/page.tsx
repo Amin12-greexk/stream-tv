@@ -493,7 +493,7 @@ export default function PlaylistsPage() {
                         <div className="text-6xl mb-4">📭</div>
                         <h4 className="text-lg font-bold text-gray-800 mb-2">Playlist Kosong</h4>
                         <p className="text-gray-600 mb-4">Belum ada media dalam playlist ini</p>
-                        <p className="text-sm text-gray-500">Klik "Tambah Media" untuk memulai</p>
+                        <p className="text-sm text-gray-500">Klik &quot;Tambah Media&quot; untuk memulai</p>
                       </div>
                     ) : (
                       <div className="divide-y divide-gray-200">
@@ -598,7 +598,7 @@ export default function PlaylistsPage() {
                 <div className="flex items-start gap-2">
                   <span className="text-lg">📐</span>
                   <div>
-                    <p><strong>Mode tampilan:</strong> "Cover" untuk layar penuh, "Contain" untuk proporsional</p>
+                    <p><strong>Mode tampilan:</strong> &quot;Cover&quot; untuk layar penuh, &quot;Contain&quot; untuk proporsional</p>
                   </div>
                 </div>
               </div>

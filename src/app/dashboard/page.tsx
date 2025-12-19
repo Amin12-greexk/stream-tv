@@ -12,6 +12,10 @@ type Stats = {
   assignmentCount: number;
 };
 
+type DeviceStatus = {
+  lastSeen: string | null;
+};
+
 export default function DashboardHome() {
   const router = useRouter();
   const [stats, setStats] = useState<Stats>({
@@ -54,7 +58,11 @@ export default function DashboardHome() {
           fetchAPI("/api/assignments", true),
         ]);
 
-        const onlineCount = devices.filter((d: any) => {
+        const devicesArray: DeviceStatus[] = Array.isArray(devices)
+          ? (devices as DeviceStatus[])
+          : [];
+
+        const onlineCount = devicesArray.filter((d) => {
           if (!d.lastSeen) return false;
           const lastSeen = new Date(d.lastSeen);
           // Online jika terlihat dalam 60 detik terakhir
@@ -64,7 +72,7 @@ export default function DashboardHome() {
         setStats({
           mediaCount: mediaStats.count,
           playlistCount: playlistStats.count,
-          deviceCount: devices.length,
+          deviceCount: devicesArray.length,
           onlineDevices: onlineCount,
           groupCount: groupStats.count,
           assignmentCount: assignmentStats.count,

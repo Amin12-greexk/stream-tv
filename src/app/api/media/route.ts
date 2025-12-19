@@ -64,7 +64,8 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const title = (formData.get("title") as string) || "Media";
-    const enableHLS = formData.get("enableHLS") === "true";
+    const enableHLSFlag = formData.get("enableHLS");
+    const enableHLS = enableHLSFlag === null ? true : enableHLSFlag === "true";
 
     if (!file) {
       return NextResponse.json({ error: "No file" }, { status: 400 });

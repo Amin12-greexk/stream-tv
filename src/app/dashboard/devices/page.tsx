@@ -1,6 +1,6 @@
 // src/app/dashboard/devices/page.tsx
 "use client";
-import { useEffect, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from "react";
 
 type Device = {
   id: string;
@@ -9,6 +9,15 @@ type Device = {
   groupId: string | null;
   lastSeen: string | null;
   playerVer: string | null;
+  ipAddress: string | null;
+  macAddress: string | null;
+  broadcast: string | null;
+  wolPort: number;
+  wolEnabled: boolean;
+  wowlanEnabled: boolean;
+  ipControlEnabled: boolean;
+  ipControlPin: string | null;
+  ipControlPort: number;
   createdAt: string;
   group: { id: string; name: string } | null;
 };
@@ -17,6 +26,178 @@ type DeviceGroup = {
   id: string;
   name: string;
 };
+
+type NetworkFormState = {
+  ipAddress: string;
+  macAddress: string;
+  broadcast: string;
+  wolPort: string;
+  wolEnabled: boolean;
+  wowlanEnabled: boolean;
+  ipControlEnabled: boolean;
+  ipControlPin: string;
+  ipControlPort: string;
+};
+
+const createEmptyNetworkForm = (): NetworkFormState => ({
+  ipAddress: "",
+  macAddress: "",
+  broadcast: "",
+  wolPort: "9",
+  wolEnabled: true,
+  wowlanEnabled: false,
+  ipControlEnabled: false,
+  ipControlPin: "",
+  ipControlPort: "10002",
+});
+
+type NetworkFieldsProps = {
+  form: NetworkFormState;
+  setForm: Dispatch<SetStateAction<NetworkFormState>>;
+  idPrefix: string;
+};
+
+function NetworkFieldsSection({ form, setForm, idPrefix }: NetworkFieldsProps) {
+  return (
+    <div className="border-t border-dashed border-gray-200 pt-6">
+      <h4 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+        <span></span>
+        Pengaturan Jaringan & Wake
+      </h4>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div>
+          <label className="block text-sm font-bold text-gray-800 mb-2">IP Address (opsional)</label>
+          <input
+            type="text"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            placeholder="contoh: 192.168.29.121"
+            value={form.ipAddress}
+            onChange={(e) => setForm((prev) => ({ ...prev, ipAddress: e.target.value }))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-800 mb-2">MAC Address (untuk Wake on LAN)</label>
+          <input
+            type="text"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent font-mono"
+            placeholder="AA:BB:CC:DD:EE:FF"
+            value={form.macAddress}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, macAddress: e.target.value.toUpperCase() }))
+            }
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-800 mb-2">Broadcast Address (opsional)</label>
+          <input
+            type="text"
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            placeholder="contoh: 192.168.29.255"
+            value={form.broadcast}
+            onChange={(e) => setForm((prev) => ({ ...prev, broadcast: e.target.value }))}
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Kosongkan untuk menggunakan broadcast default (255.255.255.255)
+          </p>
+        </div>
+        <div>
+          <label className="block text-sm font-bold text-gray-800 mb-2">Port Wake-on-LAN</label>
+          <input
+            type="number"
+            min={1}
+            max={65535}
+            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+            value={form.wolPort}
+            onChange={(e) => setForm((prev) => ({ ...prev, wolPort: e.target.value }))}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex items-start gap-3">
+          <input
+            id={`${idPrefix}-wol-enabled`}
+            type="checkbox"
+            className="mt-1 h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500"
+            checked={form.wolEnabled}
+            onChange={(e) => setForm((prev) => ({ ...prev, wolEnabled: e.target.checked }))}
+          />
+          <div>
+            <label htmlFor={`${idPrefix}-wol-enabled`} className="font-bold text-gray-900">
+              Aktifkan Wake on LAN (Ethernet)
+            </label>
+            <p className="text-sm text-gray-500">
+              Kirim magic packet melalui jaringan kabel saat tersedia.
+            </p>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex items-start gap-3">
+          <input
+            id={`${idPrefix}-wowlan-enabled`}
+            type="checkbox"
+            className="mt-1 h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500"
+            checked={form.wowlanEnabled}
+            onChange={(e) => setForm((prev) => ({ ...prev, wowlanEnabled: e.target.checked }))}
+          />
+          <div>
+            <label htmlFor={`${idPrefix}-wowlan-enabled`} className="font-bold text-gray-900">
+              Aktifkan Wake on Wireless
+            </label>
+            <p className="text-sm text-gray-500">
+              Gunakan MAC Wi-Fi perangkat untuk membangunkan Sharp Android TV.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-3">
+        <div className="flex items-start gap-3">
+          <input
+            id={`${idPrefix}-ip-control-enabled`}
+            type="checkbox"
+            className="mt-1 h-5 w-5 text-green-600 rounded border-gray-300 focus:ring-green-500"
+            checked={form.ipControlEnabled}
+            onChange={(e) => setForm((prev) => ({ ...prev, ipControlEnabled: e.target.checked }))}
+          />
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor={`${idPrefix}-ip-control-enabled`} className="font-bold text-gray-900 block">
+                Aktifkan Sharp IP Control
+              </label>
+              <p className="text-sm text-gray-500">
+                Gunakan PIN bawaan (contoh: 1234) bila ingin mengirim perintah TCP langsung.
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">PIN</label>
+                <input
+                  type="text"
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  placeholder="1234"
+                  value={form.ipControlPin}
+                  onChange={(e) => setForm((prev) => ({ ...prev, ipControlPin: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-800 mb-1">Port</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={65535}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  value={form.ipControlPort}
+                  onChange={(e) => setForm((prev) => ({ ...prev, ipControlPort: e.target.value }))}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DevicesPage() {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -30,6 +211,10 @@ export default function DevicesPage() {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [groupId, setGroupId] = useState("");
+  const [networkForm, setNetworkForm] = useState<NetworkFormState>(createEmptyNetworkForm());
+  const [networkEditForm, setNetworkEditForm] = useState<NetworkFormState>(createEmptyNetworkForm());
+  const [networkModalDevice, setNetworkModalDevice] = useState<Device | null>(null);
+  const [savingNetwork, setSavingNetwork] = useState(false);
 
   async function loadDevices() {
     const res = await fetch("/api/devices", { cache: "no-store" });
@@ -62,24 +247,103 @@ export default function DevicesPage() {
     setCode(result);
   }
 
+  function resetNetworkForm() {
+    setNetworkForm(createEmptyNetworkForm());
+  }
+
+  function resetNetworkEditForm() {
+    setNetworkEditForm(createEmptyNetworkForm());
+  }
+
+  const parseNumber = (value: string, fallback: number) => {
+    const parsed = parseInt(value, 10);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  const buildNetworkPayload = (form: NetworkFormState) => ({
+    ipAddress: form.ipAddress.trim() || null,
+    macAddress: form.macAddress.trim() || null,
+    broadcast: form.broadcast.trim() || null,
+    wolEnabled: form.wolEnabled,
+    wowlanEnabled: form.wowlanEnabled,
+    wolPort: parseNumber(form.wolPort, 9),
+    ipControlEnabled: form.ipControlEnabled,
+    ipControlPin: form.ipControlPin.trim() || null,
+    ipControlPort: parseNumber(form.ipControlPort, 10002),
+  });
+
+  function openNetworkModal(device: Device) {
+    setNetworkEditForm({
+      ipAddress: device.ipAddress || "",
+      macAddress: device.macAddress || "",
+      broadcast: device.broadcast || "",
+      wolPort: String(device.wolPort ?? 9),
+      wolEnabled: device.wolEnabled,
+      wowlanEnabled: device.wowlanEnabled,
+      ipControlEnabled: device.ipControlEnabled,
+      ipControlPin: device.ipControlPin || "",
+      ipControlPort: String(device.ipControlPort ?? 10002),
+    });
+    setNetworkModalDevice(device);
+  }
+
+  function closeNetworkModal() {
+    setNetworkModalDevice(null);
+    resetNetworkEditForm();
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     
     const res = await fetch("/api/devices", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, code, groupId: groupId || null }),
+      body: JSON.stringify({
+        name,
+        code,
+        groupId: groupId || null,
+        ...buildNetworkPayload(networkForm),
+      }),
     });
 
     if (res.ok) {
       setName("");
       setCode("");
       setGroupId("");
+      resetNetworkForm();
       setShowForm(false);
       loadDevices();
     } else {
       const error = await res.json();
       alert(error.error || "Gagal membuat perangkat");
+    }
+  }
+
+  async function onNetworkSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!networkModalDevice) return;
+
+    setSavingNetwork(true);
+    try {
+      const res = await fetch("/api/devices", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: networkModalDevice.id,
+          ...buildNetworkPayload(networkEditForm),
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        alert(error.error || "Gagal menyimpan pengaturan jaringan");
+        return;
+      }
+
+      closeNetworkModal();
+      loadDevices();
+    } finally {
+      setSavingNetwork(false);
     }
   }
 
@@ -221,14 +485,16 @@ export default function DevicesPage() {
               </div>
               
               <div className="flex gap-2">
-                {[
-                  { key: "all", label: "Semua", icon: "📱" },
-                  { key: "online", label: "Online", icon: "🟢" },
-                  { key: "offline", label: "Offline", icon: "🔴" }
-                ].map((filter) => (
+                {(
+                  [
+                    { key: "all", label: "Semua", icon: "📱" },
+                    { key: "online", label: "Online", icon: "🟢" },
+                    { key: "offline", label: "Offline", icon: "🔴" }
+                  ] as const
+                ).map((filter) => (
                   <button
                     key={filter.key}
-                    onClick={() => setFilterStatus(filter.key as any)}
+                    onClick={() => setFilterStatus(filter.key)}
                     className={`flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
                       filterStatus === filter.key
                         ? 'bg-indigo-600 text-white shadow-lg'
@@ -326,6 +592,8 @@ export default function DevicesPage() {
                 </select>
               </div>
 
+              <NetworkFieldsSection form={networkForm} setForm={setNetworkForm} idPrefix="create" />
+
               <div className="flex gap-3 pt-4">
                 <button
                   type="submit"
@@ -341,10 +609,59 @@ export default function DevicesPage() {
                     setName("");
                     setCode("");
                     setGroupId("");
+                    resetNetworkForm();
                   }}
                   className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all duration-200 font-bold text-lg"
                 >
                   ❌ Batal
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {networkModalDevice && (
+          <div className="bg-white rounded-2xl shadow-lg border border-indigo-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-indigo-500 to-blue-600 p-6">
+              <div className="flex items-center justify-between text-white">
+                <div>
+                  <h3 className="text-xl font-bold">Pengaturan Jaringan & Wake</h3>
+                  <p className="text-indigo-100 text-sm">
+                    {networkModalDevice.name} &mdash; kode {networkModalDevice.code}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeNetworkModal}
+                  className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-xl text-sm"
+                >
+                  �?O Tutup
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={onNetworkSubmit} className="p-6 space-y-6">
+              <NetworkFieldsSection
+                form={networkEditForm}
+                setForm={setNetworkEditForm}
+                idPrefix={`edit-${networkModalDevice.id}`}
+              />
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={savingNetwork}
+                  className="flex items-center gap-2 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-8 py-4 rounded-xl transition-all duration-200 font-bold text-lg shadow-lg"
+                >
+                  <span>�o.</span>
+                  {savingNetwork ? "Menyimpan..." : "Simpan Pengaturan"}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeNetworkModal}
+                  className="px-8 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl transition-all duration-200 font-bold text-lg"
+                >
+                  �?O Batal
                 </button>
               </div>
             </form>
@@ -374,7 +691,10 @@ export default function DevicesPage() {
             </p>
             {!searchTerm && filterStatus === "all" && (
               <button
-                onClick={() => setShowForm(true)}
+                onClick={() => {
+                  resetNetworkForm();
+                  setShowForm(true);
+                }}
                 className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white px-8 py-3 rounded-xl transition-all duration-200 font-bold shadow-lg"
               >
                 ➕ Tambah Perangkat Pertama
@@ -386,6 +706,12 @@ export default function DevicesPage() {
             {filteredDevices.map((device) => {
               const online = isOnline(device.lastSeen);
               const playerUrl = getPlayerUrl(device.code);
+              const ipDisplay = device.ipAddress || "Belum disetel";
+              const macDisplay = device.macAddress || "Belum disetel";
+              const broadcastDisplay = device.broadcast || "255.255.255.255";
+              const wolPortDisplay = device.wolPort || 9;
+              const wolStatusLabel = device.wolEnabled ? "LAN aktif" : "LAN mati";
+              const wowlanStatusLabel = device.wowlanEnabled ? "Wi-Fi aktif" : "Wi-Fi mati";
               
               return (
                 <div key={device.id} className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
@@ -469,6 +795,55 @@ export default function DevicesPage() {
                               <p className="text-sm font-medium text-gray-900">{device.playerVer}</p>
                             </div>
                           )}
+                          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-lg">IP</span>
+                              <span className="text-sm font-medium text-gray-600">Alamat IP</span>
+                            </div>
+                            <p className="text-sm font-mono font-semibold text-gray-900">{ipDisplay}</p>
+                          </div>
+
+                          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-lg">MAC</span>
+                              <span className="text-sm font-medium text-gray-600">Alamat MAC</span>
+                            </div>
+                            <p className="text-sm font-mono font-semibold text-gray-900 break-all">{macDisplay}</p>
+                          </div>
+
+                          <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg font-bold">WL</span>
+                                <span className="text-sm font-medium text-gray-600">Wake Capability</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => openNetworkModal(device)}
+                                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                              >
+                                Atur
+                              </button>
+                            </div>
+                            <p className="text-xs text-gray-500">Broadcast: {broadcastDisplay}</p>
+                            <p className="text-xs text-gray-500">Port: {wolPortDisplay}</p>
+                            <div className="flex flex-wrap gap-2 mt-2">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  device.wolEnabled ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                                }`}
+                              >
+                                {wolStatusLabel}
+                              </span>
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                  device.wowlanEnabled ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
+                                }`}
+                              >
+                                {wowlanStatusLabel}
+                              </span>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Player URL */}

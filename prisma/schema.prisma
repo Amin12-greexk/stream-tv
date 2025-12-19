@@ -32,6 +32,15 @@ model Device {
   group      DeviceGroup? @relation(fields: [groupId], references: [id])
   lastSeen   DateTime?
   playerVer  String?
+  ipAddress  String?
+  macAddress String?
+  broadcast  String?
+  wolPort    Int          @default(9)
+  wolEnabled Boolean      @default(false)
+  wowlanEnabled Boolean   @default(false)
+  ipControlEnabled Boolean @default(false)
+  ipControlPin String?
+  ipControlPort Int       @default(10002)
   createdAt  DateTime     @default(now())
 
   playLogs   PlayLog[]

@@ -40,8 +40,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(playlist, { status: 201 });
-  } catch (error: any) {
-    if (error.code === "P2002") {
+  } catch (error: unknown) {
+    const err = error as { code?: string };
+    if (err?.code === "P2002") {
       return NextResponse.json({ error: "Playlist name already exists" }, { status: 409 });
     }
     return NextResponse.json({ error: "Failed to create playlist" }, { status: 500 });
@@ -60,7 +61,7 @@ export async function DELETE(req: NextRequest) {
     await prisma.playlist.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to delete playlist" }, { status: 500 });
   }
 }

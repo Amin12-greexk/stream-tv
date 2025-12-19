@@ -4,6 +4,14 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+type PlayLogEntryInput = {
+  mediaId: string;
+  startedAt?: string;
+  endedAt?: string;
+  status?: string;
+  notes?: string | null;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
@@ -33,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Expect entries: [{ mediaId, startedAt, endedAt, status, notes }]
     if (entries.length > 0) {
       await prisma.playLog.createMany({
-        data: entries.map((e: any) => ({
+        data: (entries as PlayLogEntryInput[]).map((e) => ({
           deviceId: device.id,
           mediaId: e.mediaId,
           startedAt: e.startedAt ? new Date(e.startedAt) : new Date(),

@@ -16,15 +16,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing device parameter" }, { status: 400 });
     }
 
-    const body = await req.json().catch(() => ({}));
+    const body: unknown = await req.json().catch(() => ({}));
+    const bodyObj =
+      body && typeof body === "object" ? (body as Record<string, unknown>) : {};
+
+    const playerVer = typeof bodyObj.playerVer === "string" ? bodyObj.playerVer : null;
+    const ipAddress = typeof bodyObj.ipAddress === "string" ? bodyObj.ipAddress : null;
+    const macAddress = typeof bodyObj.macAddress === "string" ? bodyObj.macAddress : null;
     
     // Update device last seen time and player version
+    const data = {
+      lastSeen: new Date(),
+      playerVer,
+      ...(ipAddress ? { ipAddress } : {}),
+      ...(macAddress ? { macAddress } : {}),
+    };
+
     const result = await prisma.device.updateMany({
       where: { code },
-      data: { 
-        lastSeen: new Date(), 
-        playerVer: body.playerVer ?? null 
-      },
+      data,
     });
 
     if (result.count === 0) {
@@ -40,7 +50,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ 
       ok: true, 
       timestamp: new Date().toISOString(),
-      deviceCode: code
+      deviceCode: code,
+      ipAddress,
+      macAddress
     });
   } catch (error) {
     console.error("💥 Heartbeat error:", error);

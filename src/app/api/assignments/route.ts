@@ -67,7 +67,7 @@ export async function DELETE(req: NextRequest) {
     await prisma.assignment.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to delete assignment" }, { status: 500 });
   }
 }

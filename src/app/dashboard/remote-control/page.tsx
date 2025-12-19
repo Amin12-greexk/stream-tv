@@ -1,21 +1,36 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Device = {
   id: string;
   name: string;
   code: string;
   lastSeen: string | null;
+  ipAddress: string | null;
+  macAddress: string | null;
+  broadcast: string | null;
+  wolPort: number;
+  wolEnabled: boolean;
+  wowlanEnabled: boolean;
   group: { name: string } | null;
 };
 
 type CommandHistory = {
   id: string;
   command: string;
-  params: any;
+  params: Record<string, unknown> | null;
   status: string;
   createdAt: string;
   executedAt: string | null;
+};
+
+type WakeMethod = "wol" | "wowlan";
+type WakeRequestPayload = {
+  deviceCode?: string;
+  deviceId?: string;
+  method: WakeMethod;
+  macAddress?: string;
+  broadcastIp?: string;
 };
 
 export default function RemoteControlPage() {
@@ -27,13 +42,17 @@ export default function RemoteControlPage() {
   const [message, setMessage] = useState<{ type: string; text: string } | null>(null);
   const [customCommand, setCustomCommand] = useState("");
   const [customParams, setCustomParams] = useState("");
+  const [wakeRequest, setWakeRequest] = useState<WakeMethod | null>(null);
+  const [manualMac, setManualMac] = useState("");
+  const [manualBroadcast, setManualBroadcast] = useState("");
+  const selectedDeviceData = devices.find((d) => d.code === selectedDevice);
 
   // Load devices
-  async function loadDevices() {
+  const loadDevices = useCallback(async () => {
     try {
       const res = await fetch("/api/devices", { cache: "no-store" });
       if (res.ok) {
-        const data = await res.json();
+        const data: Device[] = await res.json();
         setDevices(data);
       }
     } catch (error) {
@@ -41,28 +60,28 @@ export default function RemoteControlPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   // Load command history
-  async function loadCommandHistory() {
+  const loadCommandHistory = useCallback(async () => {
     if (!selectedDevice) return;
-    
+
     try {
       const res = await fetch(`/api/player/command?device=${selectedDevice}`, {
-        cache: "no-store"
+        cache: "no-store",
       });
       if (res.ok) {
-        const data = await res.json();
+        const data: { commands?: CommandHistory[] } = await res.json();
         setCommandHistory(data.commands || []);
       }
     } catch (error) {
       console.error("Failed to load command history:", error);
     }
-  }
+  }, [selectedDevice]);
 
   useEffect(() => {
     loadDevices();
-  }, []);
+  }, [loadDevices]);
 
   useEffect(() => {
     if (selectedDevice) {
@@ -70,10 +89,15 @@ export default function RemoteControlPage() {
       const interval = setInterval(loadCommandHistory, 3000);
       return () => clearInterval(interval);
     }
+  }, [selectedDevice, loadCommandHistory]);
+
+  useEffect(() => {
+    setManualMac("");
+    setManualBroadcast("");
   }, [selectedDevice]);
 
   // Send command
-  async function sendCommand(command: string, params?: any) {
+  async function sendCommand(command: string, params?: Record<string, unknown>) {
     if (!selectedDevice) {
       showMessage("error", "Silakan pilih perangkat terlebih dahulu");
       return;
@@ -92,11 +116,11 @@ export default function RemoteControlPage() {
       });
 
       if (res.ok) {
-        const data = await res.json();
+        const data: { message?: string } = await res.json();
         showMessage("success", data.message || "Perintah berhasil dikirim");
         loadCommandHistory();
       } else {
-        const error = await res.json();
+        const error: { error?: string } = await res.json();
         showMessage("error", error.error || "Gagal mengirim perintah");
       }
     } catch (error) {
@@ -104,6 +128,73 @@ export default function RemoteControlPage() {
       showMessage("error", "Gagal mengirim perintah");
     } finally {
       setSending(false);
+    }
+  }
+
+  async function triggerWake(method: WakeMethod) {
+    if (!selectedDevice) {
+      showMessage("error", "Pilih perangkat sebelum mengirim wake signal");
+      return;
+    }
+
+    const device = selectedDeviceData;
+    if (!device) {
+      showMessage("error", "Data perangkat tidak ditemukan");
+      return;
+    }
+
+    if (method === "wol" && !device.wolEnabled) {
+      showMessage("error", "Wake on LAN belum diaktifkan untuk perangkat ini");
+      return;
+    }
+
+    if (method === "wowlan" && !device.wowlanEnabled) {
+      showMessage("error", "Wake on Wireless belum diaktifkan untuk perangkat ini");
+      return;
+    }
+
+    const macToUse = manualMac.trim() || device.macAddress || "";
+    if (!macToUse) {
+      showMessage("error", "Tambahkan MAC address perangkat terlebih dahulu");
+      return;
+    }
+
+    const body: WakeRequestPayload = {
+      deviceCode: selectedDevice,
+      method,
+    };
+
+    if (manualMac.trim()) {
+      body.macAddress = manualMac.trim().toUpperCase();
+    }
+
+    if (manualBroadcast.trim()) {
+      body.broadcastIp = manualBroadcast.trim();
+    }
+
+    setWakeRequest(method);
+    try {
+      const res = await fetch("/api/devices/wake", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data: { error?: string } = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Gagal mengirim wake signal");
+      }
+      showMessage(
+        "success",
+        method === "wol" ? "Wake on LAN dikirim" : "Wake on Wireless dikirim"
+      );
+    } catch (error) {
+      console.error("Wake command error:", error);
+      showMessage(
+        "error",
+        error instanceof Error ? error.message : "Gagal mengirim wake signal"
+      );
+    } finally {
+      setWakeRequest(null);
     }
   }
 
@@ -123,7 +214,6 @@ export default function RemoteControlPage() {
     return `${baseUrl}/player?device=${deviceCode}`;
   }
 
-  const selectedDeviceData = devices.find(d => d.code === selectedDevice);
   const onlineDevices = devices.filter(d => isDeviceOnline(d.lastSeen));
 
   if (loading) {
@@ -277,12 +367,123 @@ export default function RemoteControlPage() {
                       </a>
                     </div>
                   )}
-                </div>
               </div>
+            </div>
 
-              <div className="p-6 space-y-8">
-                {/* Playback Controls */}
-                <div>
+            <div className="p-6 space-y-8">
+              {selectedDeviceData && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5">
+                    <h4 className="text-lg font-bold text-gray-800 mb-3">Informasi Konektivitas</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <p className="text-gray-500">Alamat IP</p>
+                        <p className="font-semibold">{selectedDeviceData.ipAddress || "Belum disetel"}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">MAC Address</p>
+                        <p className="font-mono font-semibold break-all">
+                          {selectedDeviceData.macAddress || "Belum disetel"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Broadcast</p>
+                        <p className="font-semibold">
+                          {selectedDeviceData.broadcast || "255.255.255.255"}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Port Wake-on-LAN</p>
+                        <p className="font-semibold">{selectedDeviceData.wolPort}</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-4">
+                      Perbarui data ini di menu <strong>Dashboard &gt; Devices</strong> untuk akurasi wake signal.
+                    </p>
+                  </div>
+
+                  <div className="bg-white border border-gray-200 rounded-2xl p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-800">Wake & Power</h4>
+                        <p className="text-gray-500 text-sm">
+                          Kirim magic packet via LAN atau Wi-Fi.
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            selectedDeviceData.wolEnabled
+                              ? "bg-green-100 text-green-700"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          LAN {selectedDeviceData.wolEnabled ? "aktif" : "mati"}
+                        </span>
+                        <span
+                          className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            selectedDeviceData.wowlanEnabled
+                              ? "bg-blue-100 text-blue-700"
+                              : "bg-gray-100 text-gray-500"
+                          }`}
+                        >
+                          Wi-Fi {selectedDeviceData.wowlanEnabled ? "aktif" : "mati"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-3 mt-4">
+                      <button
+                        onClick={() => triggerWake("wol")}
+                        disabled={!selectedDeviceData.wolEnabled || wakeRequest === "wol"}
+                        className="flex-1 min-w-[140px] bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white px-4 py-3 rounded-xl font-semibold transition-all"
+                      >
+                        {wakeRequest === "wol" ? "Mengirim..." : "Wake via LAN"}
+                      </button>
+                      <button
+                        onClick={() => triggerWake("wowlan")}
+                        disabled={!selectedDeviceData.wowlanEnabled || wakeRequest === "wowlan"}
+                        className="flex-1 min-w-[140px] bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white px-4 py-3 rounded-xl font-semibold transition-all"
+                      >
+                        {wakeRequest === "wowlan" ? "Mengirim..." : "Wake via Wi-Fi"}
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-5">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Override MAC (opsional)
+                        </label>
+                        <input
+                          type="text"
+                          value={manualMac}
+                          placeholder="AA:BB:CC:DD:EE:FF"
+                          onChange={(e) => setManualMac(e.target.value.toUpperCase())}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-600 mb-1">
+                          Override Broadcast (opsional)
+                        </label>
+                        <input
+                          type="text"
+                          value={manualBroadcast}
+                          placeholder="192.168.29.255"
+                          onChange={(e) => setManualBroadcast(e.target.value)}
+                          className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-3">
+                      Kosongkan override untuk memakai data perangkat yang tersimpan.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Playback Controls */}
+              <div>
                   <h4 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                     <span>▶️</span>
                     Kontrol Pemutaran
@@ -476,7 +677,7 @@ export default function RemoteControlPage() {
                             sendCommand(customCommand, params);
                             setCustomCommand("");
                             setCustomParams("");
-                          } catch (error) {
+                          } catch {
                             showMessage("error", "Parameter JSON tidak valid");
                           }
                         }}

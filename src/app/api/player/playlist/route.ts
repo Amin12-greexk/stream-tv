@@ -120,17 +120,22 @@ export async function GET(req: NextRequest) {
     // Build playlist items
     const items = chosen.playlist.items
       .sort((a, b) => a.order - b.order)
-      .map((it) => ({
-        id: it.id,
-        mediaId: it.mediaId,
-        type: it.media.type,
-        url: `/api/stream/${it.media.filename}`,
-        displayFit: it.displayFit,
-        duration: it.media.type === "image" 
-          ? (it.imageDuration ?? 8) 
-          : (it.media.duration ?? undefined),
-        title: it.media.title,
-      }));
+      .map((it) => {
+        const hasHls = !!it.media.hlsPath;
+        return {
+          id: it.id,
+          mediaId: it.mediaId,
+          type: it.media.type,
+          url: hasHls 
+            ? `/api/hls/${it.media.hlsPath}` 
+            : `/api/stream/${it.media.filename}`,
+          displayFit: it.displayFit,
+          duration: it.media.type === "image" 
+            ? (it.imageDuration ?? 8) 
+            : (it.media.duration ?? undefined),
+          title: it.media.title,
+        };
+      });
 
     const payload = { 
       groupId: device.groupId, 

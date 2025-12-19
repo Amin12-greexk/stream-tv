@@ -43,8 +43,9 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(group, { status: 201 });
-  } catch (error: any) {
-    if (error.code === "P2002") {
+  } catch (error: unknown) {
+    const err = error as { code?: string };
+    if (err?.code === "P2002") {
       return NextResponse.json({ error: "Group name already exists" }, { status: 409 });
     }
     return NextResponse.json({ error: "Failed to create group" }, { status: 500 });
@@ -75,7 +76,7 @@ export async function DELETE(req: NextRequest) {
     await prisma.deviceGroup.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to delete group" }, { status: 500 });
   }
 }

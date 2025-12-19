@@ -10,10 +10,29 @@ type Item = {
   duration?: number;
 };
 
+function isDisplayFit(value: unknown): value is Item["displayFit"] {
+  return value === "contain" || value === "cover" || value === "stretch";
+}
+
+function isItem(value: unknown): value is Item {
+  if (!value || typeof value !== "object") return false;
+  const obj = value as Record<string, unknown>;
+
+  const type = obj.type;
+  return (
+    typeof obj.id === "string" &&
+    (type === "image" || type === "video") &&
+    typeof obj.url === "string" &&
+    isDisplayFit(obj.displayFit) &&
+    (obj.title === undefined || typeof obj.title === "string") &&
+    (obj.duration === undefined || typeof obj.duration === "number")
+  );
+}
+
 type RemoteCommand = {
   id: string;
   command: string;
-  params?: any;
+  params?: Record<string, unknown>;
 };
 
 export default function PlayerPage() {
@@ -29,12 +48,11 @@ export default function PlayerPage() {
 
   const etagRef = useRef<string | null>(null);
   const retryCountRef = useRef(0);
-  const failCountRef = useRef(0); // (7) track kegagalan per siklus
+  const failCountRef = useRef(0);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null); // (5) fullscreen ke container
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // (1) tipe timer aman DOM
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -47,7 +65,6 @@ export default function PlayerPage() {
     }
   }, []);
 
-  // Remote command execution
   const executeCommand = useCallback(
     (cmd: RemoteCommand) => {
       console.log("Executing remote command:", cmd);
@@ -58,7 +75,6 @@ export default function PlayerPage() {
             videoRef.current
               .play()
               .catch(() => {
-                // (4) fallback autoplay: paksa mute lalu play
                 videoRef.current!.muted = true;
                 return videoRef.current!.play();
               })
@@ -91,22 +107,34 @@ export default function PlayerPage() {
           break;
 
         case "goto":
-          if (cmd.params?.index !== undefined) {
-            const newIdx = parseInt(cmd.params.index);
-            if (newIdx >= 0 && newIdx < items.length) {
+          {
+            const indexRaw = cmd.params?.index;
+            const newIdx =
+              typeof indexRaw === "number"
+                ? indexRaw
+                : typeof indexRaw === "string"
+                  ? parseInt(indexRaw, 10)
+                  : NaN;
+            if (Number.isFinite(newIdx) && newIdx >= 0 && newIdx < items.length) {
               setIdx(newIdx);
             }
           }
           break;
 
         case "volume":
-          if (cmd.params?.level !== undefined) {
-            const vol = parseFloat(cmd.params.level);
-            if (vol >= 0 && vol <= 1) {
+          {
+            const levelRaw = cmd.params?.level;
+            const vol =
+              typeof levelRaw === "number"
+                ? levelRaw
+                : typeof levelRaw === "string"
+                  ? parseFloat(levelRaw)
+                  : NaN;
+            if (Number.isFinite(vol) && vol >= 0 && vol <= 1) {
               setVolume(vol);
               if (videoRef.current) {
                 videoRef.current.volume = vol;
-                videoRef.current.muted = vol === 0; // (4) sinkron mute
+                videoRef.current.muted = vol === 0;
               }
             }
           }
@@ -129,8 +157,17 @@ export default function PlayerPage() {
           break;
 
         case "seek":
-          if (videoRef.current && cmd.params?.time !== undefined) {
-            videoRef.current.currentTime = parseFloat(cmd.params.time);
+          if (videoRef.current) {
+            const timeRaw = cmd.params?.time;
+            const time =
+              typeof timeRaw === "number"
+                ? timeRaw
+                : typeof timeRaw === "string"
+                  ? parseFloat(timeRaw)
+                  : NaN;
+            if (Number.isFinite(time) && time >= 0) {
+              videoRef.current.currentTime = time;
+            }
           }
           break;
 
@@ -138,7 +175,6 @@ export default function PlayerPage() {
           console.warn("Unknown command:", cmd.command);
       }
 
-      // Mark command as executed
       fetch(`/api/player/poll-commands?device=${device}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,7 +184,6 @@ export default function PlayerPage() {
     [device, items.length, isPlaying]
   );
 
-  // Poll for remote commands
   useEffect(() => {
     if (!device || !remoteControlEnabled) return;
 
@@ -171,7 +206,7 @@ export default function PlayerPage() {
       }
     };
 
-    const interval = setInterval(pollCommands, 7000); // PERUBAHAN DI SINI
+    const interval = setInterval(pollCommands, 7000); // Polling lebih jarang
     return () => clearInterval(interval);
   }, [device, remoteControlEnabled, executeCommand]);
 
@@ -196,7 +231,6 @@ export default function PlayerPage() {
       el
         .play()
         .catch(() => {
-          // (4) fallback autoplay: paksa mute dulu
           el.muted = true;
           el.play().catch(console.error);
         });
@@ -209,7 +243,7 @@ export default function PlayerPage() {
       const newVolume = Math.max(0, Math.min(1, prev + delta));
       if (videoRef.current) {
         videoRef.current.volume = newVolume;
-        videoRef.current.muted = newVolume === 0; // (4)
+        videoRef.current.muted = newVolume === 0;
       }
       return newVolume;
     });
@@ -220,29 +254,20 @@ export default function PlayerPage() {
       const newVolume = prev > 0 ? 0 : 0.5;
       if (videoRef.current) {
         videoRef.current.volume = newVolume;
-        videoRef.current.muted = newVolume === 0; // (4)
+        videoRef.current.muted = newVolume === 0;
       }
       return newVolume;
     });
   }, []);
 
-  // (5) fullscreen ke elemen container (fallback ke video/document)
   const toggleFullscreen = useCallback(() => {
-    const el =
-      containerRef.current || videoRef.current || document.documentElement;
+    const el = containerRef.current || document.documentElement;
     if (document.fullscreenElement) {
       document.exitFullscreen?.();
     } else {
       el.requestFullscreen?.();
     }
   }, []);
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.volume = volume;
-      videoRef.current.muted = volume === 0; // (4)
-    }
-  }, [volume]);
 
   useEffect(() => {
     const handleMouseMove = () => {
@@ -253,63 +278,27 @@ export default function PlayerPage() {
 
     const handleKeyPress = (e: KeyboardEvent) => {
       setShowControls(true);
-
       switch (e.key) {
-        case " ":
-          if (items.length > 0) {
-            e.preventDefault();
-            togglePlayPause();
-          }
-          break;
-        case "ArrowRight":
-          if (items.length > 0) {
-            e.preventDefault();
-            nextItem();
-          }
-          break;
-        case "ArrowLeft":
-          if (items.length > 0) {
-            e.preventDefault();
-            previousItem();
-          }
-          break;
-        case "ArrowUp":
-          e.preventDefault();
-          adjustVolume(0.1);
-          break;
-        case "ArrowDown":
-          e.preventDefault();
-          adjustVolume(-0.1);
-          break;
-        case "m":
-        case "M":
-          e.preventDefault();
-          toggleMute();
-          break;
-        case "f":
-        case "F":
-          e.preventDefault();
-          toggleFullscreen();
-          break;
+        case " ": e.preventDefault(); togglePlayPause(); break;
+        case "ArrowRight": e.preventDefault(); nextItem(); break;
+        case "ArrowLeft": e.preventDefault(); previousItem(); break;
+        case "ArrowUp": e.preventDefault(); adjustVolume(0.1); break;
+        case "ArrowDown": e.preventDefault(); adjustVolume(-0.1); break;
+        case "m": case "M": e.preventDefault(); toggleMute(); break;
+        case "f": case "F": e.preventDefault(); toggleFullscreen(); break;
       }
-
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
       controlsTimeoutRef.current = setTimeout(() => setShowControls(false), 3000);
     };
 
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("keydown", handleKeyPress);
-    document.addEventListener("click", handleMouseMove);
-
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("keydown", handleKeyPress);
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("keydown", handleKeyPress);
-      document.removeEventListener("click", handleMouseMove);
-      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("keydown", handleKeyPress);
     };
-  }, [togglePlayPause, nextItem, previousItem, adjustVolume, toggleMute, toggleFullscreen, items.length]);
+  }, [adjustVolume, nextItem, previousItem, toggleFullscreen, toggleMute, togglePlayPause]);
 
-  // (3) jaga index saat polling playlist, hindari lompat
   const fetchPlaylist = useCallback(async () => {
     if (!device) return;
 
@@ -323,162 +312,119 @@ export default function PlayerPage() {
         retryCountRef.current = 0;
         return;
       }
-
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
 
       const etag = res.headers.get("etag");
-      const data = await res.json();
       if (etag) etagRef.current = etag;
+      
+      const data: unknown = await res.json();
+      const maybeItems = (data as { items?: unknown }).items;
+      const validItems: Item[] = Array.isArray(maybeItems) ? maybeItems.filter(isItem) : [];
 
-      const validItems: Item[] = (data.items || []).filter(
-        (it: any) => it && it.id && it.type && it.url
-      );
-
-      // cek apakah sama persis (id dan urutan) untuk hindari setState tidak perlu
-      const sameList =
-        validItems.length === items.length &&
-        validItems.every((v, i) => v.id === items[i]?.id);
-
+      const sameList = validItems.length === items.length && validItems.every((v, i) => v.id === items[i]?.id);
       if (!sameList) {
         const prevCurrentId = items[idx]?.id;
         setItems(validItems);
-
-        // pertahankan index jika id masih ada
         const newIdx = validItems.findIndex((it) => it.id === prevCurrentId);
         setIdx(newIdx >= 0 ? newIdx : 0);
       }
-
       setError(null);
       retryCountRef.current = 0;
     } catch (err) {
       console.error("Fetch error:", err);
       retryCountRef.current++;
-
       if (retryCountRef.current >= maxRetries) {
         setError(`Failed to fetch playlist after ${maxRetries} attempts.`);
       } else {
-        setError(
-          `Connection issue (attempt ${retryCountRef.current}/${maxRetries}). Retrying...`
-        );
+        setError(`Connection issue (attempt ${retryCountRef.current}/${maxRetries}). Retrying...`);
         setTimeout(() => fetchPlaylist(), 5000 * retryCountRef.current);
       }
     } finally {
       setLoading(false);
     }
-  }, [device, items, idx]); // dependensi termasuk items/idx agar preserve-idx akurat
+  }, [device, items, idx]);
 
-  // heartbeat
   useEffect(() => {
     if (!device) return;
-
     const sendHeartbeat = async () => {
       try {
         await fetch(`/api/player/heartbeat?device=${device}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ playerVer: "web-1.5-remote" })
+          body: JSON.stringify({ playerVer: "web-1.6-simple" })
         });
       } catch (err) {
         console.error("Heartbeat error:", err);
       }
     };
-
     sendHeartbeat();
-    const heartbeatInterval = setInterval(sendHeartbeat, 45000); // PERUBAHAN DI SINI
+    const heartbeatInterval = setInterval(sendHeartbeat, 45000);
     return () => clearInterval(heartbeatInterval);
   }, [device]);
 
-  // polling playlist
   useEffect(() => {
     if (!device) return;
     fetchPlaylist();
-    const pollInterval = setInterval(() => fetchPlaylist(), 45000);
+    const pollInterval = setInterval(fetchPlaylist, 45000);
     return () => clearInterval(pollInterval);
   }, [device, fetchPlaylist]);
 
-  // (7) schedule otomatis untuk image; reset fail counter saat index berubah
   useEffect(() => {
     if (!items.length) return;
     const current = items[idx];
-
-    if (imageTimerRef.current) {
-      clearTimeout(imageTimerRef.current);
-      imageTimerRef.current = null;
-    }
-
-    failCountRef.current = 0; // reset saat pindah item normal
+    if (imageTimerRef.current) clearTimeout(imageTimerRef.current);
+    failCountRef.current = 0;
 
     if (current?.type === "image") {
-      imageTimerRef.current = setTimeout(() => {
-        nextItem();
-      }, (current.duration ?? 8) * 1000);
+      imageTimerRef.current = setTimeout(nextItem, (current.duration ?? 8) * 1000);
     }
-
     return () => {
-      if (imageTimerRef.current) {
-        clearTimeout(imageTimerRef.current);
-        imageTimerRef.current = null;
-      }
+      if (imageTimerRef.current) clearTimeout(imageTimerRef.current);
     };
   }, [idx, items, nextItem]);
 
-  // (7) tangani error media dan cegah infinite loop
   const handleMediaError = useCallback(
     (mediaType: string) => {
       console.error(`${mediaType} load error:`, items[idx]?.url);
       failCountRef.current += 1;
-
       if (failCountRef.current >= items.length) {
         setError("All playlist items failed to load.");
         return;
       }
-      setTimeout(() => nextItem(), 500);
+      setTimeout(nextItem, 500);
     },
     [items, idx, nextItem]
   );
-
-  const handleVideoEnd = useCallback(() => {
-    nextItem();
-  }, [nextItem]);
-
+  
+  const handleVideoEnd = useCallback(() => nextItem(), [nextItem]);
   const handleVideoPlay = useCallback(() => {
-    setIsPlaying(true);
-    failCountRef.current = 0; // sukses play -> reset counter gagal
+      setIsPlaying(true);
+      failCountRef.current = 0;
   }, []);
-
-  const handleVideoPause = useCallback(() => {
-    setIsPlaying(false);
-  }, []);
+  const handleVideoPause = useCallback(() => setIsPlaying(false), []);
 
   const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const newVolume = parseFloat(e.target.value);
     setVolume(newVolume);
     if (videoRef.current) {
       videoRef.current.volume = newVolume;
-      videoRef.current.muted = newVolume === 0; // (4)
+      videoRef.current.muted = newVolume === 0;
     }
   }, []);
-
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.volume = volume;
-      videoRef.current.muted = volume === 0; // (4)
-    }
-  }, [idx, volume]);
-
-  // (4) visibilitas tab: pause saat hidden (hemat resource)
+  
   useEffect(() => {
     const onVis = () => {
-      if (document.hidden) {
-        if (videoRef.current && !videoRef.current.paused) {
-          videoRef.current.pause();
-          setIsPlaying(false);
-        }
+      if (document.hidden && videoRef.current && !videoRef.current.paused) {
+        videoRef.current.pause();
+        setIsPlaying(false);
       }
     };
     document.addEventListener("visibilitychange", onVis);
     return () => document.removeEventListener("visibilitychange", onVis);
   }, []);
+
+  const current = items[idx];
+  const fitClass = current?.displayFit === "cover" ? "object-cover" : current?.displayFit === "stretch" ? "object-fill" : "object-contain";
 
   if (!device) {
     return (
@@ -534,7 +480,7 @@ export default function PlayerPage() {
       </div>
     );
   }
-
+  
   if (!items.length) {
     return (
       <div className="w-screen h-screen bg-black text-white grid place-items-center">
@@ -549,7 +495,6 @@ export default function PlayerPage() {
     );
   }
 
-  const current = items[idx];
   if (!current) {
     return (
       <div className="w-screen h-screen bg-black text-white grid place-items-center">
@@ -562,13 +507,6 @@ export default function PlayerPage() {
       </div>
     );
   }
-
-  const fitClass =
-    current.displayFit === "cover"
-      ? "object-cover"
-      : current.displayFit === "stretch"
-      ? "object-fill"
-      : "object-contain";
 
   return (
     <main ref={containerRef} className="w-screen h-screen bg-black overflow-hidden relative">
@@ -589,7 +527,6 @@ export default function PlayerPage() {
           className={`${fitClass} w-full h-full`}
           autoPlay
           playsInline
-          // (4) jaga autoplay di mobile: jika gagal, akan ditangani di togglePlay / executeCommand
           onEnded={handleVideoEnd}
           onError={() => handleMediaError("Video")}
           onPlay={handleVideoPlay}
@@ -605,7 +542,6 @@ export default function PlayerPage() {
         />
       )}
 
-      {/* Remote Control Indicator */}
       {remoteControlEnabled && (
         <div className="absolute top-3 left-3 bg-green-600/80 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-2">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
@@ -649,7 +585,6 @@ export default function PlayerPage() {
                 >
                   ⏮️
                 </button>
-
                 {current.type === "video" && (
                   <button
                     onClick={togglePlayPause}
@@ -659,7 +594,6 @@ export default function PlayerPage() {
                     {isPlaying ? "⏸️" : "▶️"}
                   </button>
                 )}
-
                 <button
                   onClick={nextItem}
                   className="bg-white/20 hover:bg-white/30 p-3 rounded-full transition-colors backdrop-blur-sm"
@@ -668,14 +602,12 @@ export default function PlayerPage() {
                   ⏭️
                 </button>
               </div>
-
               <div className="text-center">
                 <div className="text-sm text-gray-300">
                   {current.type === "video" ? "🎬 Video" : "🖼️ Image"}
                 </div>
                 <div className="text-xs text-gray-400">{current.displayFit}</div>
               </div>
-
               {current.type === "video" && (
                 <div className="flex items-center gap-3">
                   <button
@@ -713,30 +645,18 @@ export default function PlayerPage() {
           <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm rounded-lg p-3 text-xs text-gray-300 pointer-events-auto">
             <div className="font-semibold mb-2">⌨️ Keyboard Shortcuts:</div>
             <div className="space-y-1">
-              <div>
-                <kbd className="bg-white/20 px-1 rounded">Space</kbd> Play/Pause
-              </div>
-              <div>
-                <kbd className="bg-white/20 px-1 rounded">←</kbd>{" "}
-                <kbd className="bg-white/20 px-1 rounded">→</kbd> Prev/Next
-              </div>
-              <div>
-                <kbd className="bg-white/20 px-1 rounded">↑</kbd>{" "}
-                <kbd className="bg-white/20 px-1 rounded">↓</kbd> Volume
-              </div>
-              <div>
-                <kbd className="bg-white/20 px-1 rounded">M</kbd> Mute
-              </div>
-              <div>
-                <kbd className="bg-white/20 px-1 rounded">F</kbd> Fullscreen
-              </div>
+              <div><kbd className="bg-white/20 px-1 rounded">Space</kbd> Play/Pause</div>
+              <div><kbd className="bg-white/20 px-1 rounded">←</kbd> <kbd className="bg-white/20 px-1 rounded">→</kbd> Prev/Next</div>
+              <div><kbd className="bg-white/20 px-1 rounded">↑</kbd> <kbd className="bg-white/20 px-1 rounded">↓</kbd> Volume</div>
+              <div><kbd className="bg-white/20 px-1 rounded">M</kbd> Mute</div>
+              <div><kbd className="bg-white/20 px-1 rounded">F</kbd> Fullscreen</div>
             </div>
           </div>
         </div>
       )}
 
       {!showControls && items.length > 1 && (
-        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-xs px-3 py-1.5  rounded-full">
+        <div className="absolute top-3 right-3 bg-black/50 backdrop-blur-sm text-white text-xs px-3 py-1.5 rounded-full">
           {idx + 1} / {items.length}
         </div>
       )}

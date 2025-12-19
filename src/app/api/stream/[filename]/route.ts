@@ -1,7 +1,8 @@
-// src/app/api/stream/[filename]/route.ts - OPTIMIZED VERSION
+// src/app/api/stream/[filename]/route.ts - OPTIMIZED AND FIXED VERSION
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
+import { readableToWebStream } from "@/lib/webStream";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export const dynamic = "force-dynamic";
 function parseRangeHeader(rangeHeader: string, fileSize: number) {
   const parts = rangeHeader.replace(/bytes=/, "").split("-");
   const start = parseInt(parts[0], 10);
-  const end = parts[1] ? parseInt(parts[1], 10) : Math.min(start + 1024 * 1024, fileSize - 1); // Max 1MB chunks
+  const end = parts[1] ? parseInt(parts[1], 10) : Math.min(start + 4 * 1024 * 1024, fileSize - 1); // Default max 4MB chunks
   
   if (isNaN(start) || start >= fileSize || (end && start > end)) {
     return null;
@@ -53,10 +54,10 @@ const getMimeType = (filename: string): string => {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { filename: string } }
+  { params }: { params: Promise<{ filename: string }> }
 ) {
   try {
-    const { filename } = params;
+    const { filename } = await params; // <-- PERBAIKAN DI SINI
 
     if (!filename) {
       return NextResponse.json({ error: "Filename required" }, { status: 400 });
@@ -71,46 +72,16 @@ export async function GET(
     const mediaDir = process.env.MEDIA_DIR || "./storage/media";
     const filePath = path.join(process.cwd(), mediaDir, safeName);
 
-    // Check if file exists
-    if (!fs.existsSync(filePath)) {
-      // Check for HLS files
-      const hlsMatch = filename.match(/^hls\/(.*)\/(.*)\/(.*\.(?:m3u8|ts))$/);
-      if (hlsMatch) {
-        const hlsPath = path.join(process.cwd(), mediaDir, 'hls', hlsMatch[1], hlsMatch[2], hlsMatch[3]);
-        if (fs.existsSync(hlsPath)) {
-          const stat = fs.statSync(hlsPath);
-          const mimeType = getMimeType(hlsMatch[3]);
-          
-          // For .m3u8 files, set appropriate caching
-          if (hlsMatch[3].endsWith('.m3u8')) {
-            const content = fs.readFileSync(hlsPath, 'utf-8');
-            return new NextResponse(content, {
-              headers: {
-                "Content-Type": mimeType,
-                "Cache-Control": "no-cache, no-store, must-revalidate",
-                "Access-Control-Allow-Origin": "*",
-              },
-            });
-          }
-          
-          // For .ts segments, allow caching
-          const stream = fs.createReadStream(hlsPath);
-          return new NextResponse(stream as any, {
-            headers: {
-              "Content-Type": mimeType,
-              "Content-Length": stat.size.toString(),
-              "Cache-Control": "public, max-age=3600",
-              "Access-Control-Allow-Origin": "*",
-            },
-          });
-        }
+    let fileSize = 0;
+    try {
+      const stat = await fs.promises.stat(filePath);
+      fileSize = stat.size;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        return NextResponse.json({ error: "File not found" }, { status: 404 });
       }
-      
-      return NextResponse.json({ error: "File not found" }, { status: 404 });
+      throw err;
     }
-
-    const stat = fs.statSync(filePath);
-    const fileSize = stat.size;
     const mimeType = getMimeType(filename);
     
     // Enhanced caching strategy
@@ -128,8 +99,7 @@ export async function GET(
       "Accept-Ranges": "bytes",
       "Content-Type": mimeType,
       "Cache-Control": cacheControl,
-      "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'none'; media-src 'self'",
+      "X-Content-Type-Options": "nosniff"
     };
 
     const rangeHeader = req.headers.get("range");
@@ -149,42 +119,12 @@ export async function GET(
       const { start, end } = range;
       const chunkSize = end - start + 1;
 
-      // Use optimized streaming with backpressure handling
-      const stream = new ReadableStream({
-        async start(controller) {
-          const fileStream = fs.createReadStream(filePath, { 
-            start, 
-            end,
-            highWaterMark: 64 * 1024 // 64KB chunks for better network utilization
-          });
-
-          fileStream.on("data", (chunk) => {
-            try {
-              controller.enqueue(chunk);
-            } catch (error) {
-              // Handle backpressure
-              fileStream.pause();
-              setTimeout(() => fileStream.resume(), 10);
-            }
-          });
-
-          fileStream.on("end", () => {
-            try {
-              controller.close();
-            } catch (error) {
-              // Controller might already be closed
-            }
-          });
-
-          fileStream.on("error", (err) => {
-            console.error("Stream error:", err);
-            controller.error(err);
-          });
-        },
-        cancel() {
-          // Cleanup if request is cancelled
-        }
+      const fileStream = fs.createReadStream(filePath, {
+        start,
+        end,
+        highWaterMark: 256 * 1024, // 256KB chunks for LAN throughput
       });
+      const stream = readableToWebStream(fileStream, { signal: req.signal });
 
       return new NextResponse(stream, {
         status: 206,
@@ -196,47 +136,10 @@ export async function GET(
       });
     }
 
-    // For full file requests (mainly images or small files)
-    if (fileSize < 1024 * 1024) { // Less than 1MB, send at once
-      const buffer = fs.readFileSync(filePath);
-      return new NextResponse(buffer, {
-        headers: {
-          ...headers,
-          "Content-Length": fileSize.toString(),
-        },
-      });
-    }
-
-    // For larger files without range request
-    const stream = new ReadableStream({
-      start(controller) {
-        const fileStream = fs.createReadStream(filePath, {
-          highWaterMark: 64 * 1024
-        });
-        
-        fileStream.on("data", (chunk) => {
-          try {
-            controller.enqueue(chunk);
-          } catch (error) {
-            fileStream.pause();
-            setTimeout(() => fileStream.resume(), 10);
-          }
-        });
-        
-        fileStream.on("end", () => {
-          try {
-            controller.close();
-          } catch (error) {
-            // Controller might already be closed
-          }
-        });
-        
-        fileStream.on("error", (err) => {
-          console.error("Stream error:", err);
-          controller.error(err);
-        });
-      }
+    const fileStream = fs.createReadStream(filePath, {
+      highWaterMark: 256 * 1024,
     });
+    const stream = readableToWebStream(fileStream, { signal: req.signal });
 
     return new NextResponse(stream, {
       headers: {

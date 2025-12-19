@@ -15,19 +15,46 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, code, groupId } = body;
+    const { 
+      name, 
+      code, 
+      groupId,
+      ipAddress,
+      macAddress,
+      broadcast,
+      wolEnabled,
+      wowlanEnabled,
+      wolPort,
+      ipControlEnabled,
+      ipControlPin,
+      ipControlPort
+    } = body;
 
     if (!name || !code) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
     const device = await prisma.device.create({
-      data: { name, code, groupId: groupId || null },
+      data: { 
+        name, 
+        code, 
+        groupId: groupId || null,
+        ipAddress: ipAddress || null,
+        macAddress: macAddress || null,
+        broadcast: broadcast || null,
+        wolEnabled: wolEnabled ?? false,
+        wowlanEnabled: wowlanEnabled ?? false,
+        wolPort: wolPort ?? 9,
+        ipControlEnabled: ipControlEnabled ?? false,
+        ipControlPin: ipControlPin || null,
+        ipControlPort: ipControlPort ?? 10002
+      },
     });
 
     return NextResponse.json(device, { status: 201 });
-  } catch (error: any) {
-    if (error.code === "P2002") {
+  } catch (error: unknown) {
+    const err = error as { code?: string };
+    if (err?.code === "P2002") {
       return NextResponse.json({ error: "Device code already exists" }, { status: 409 });
     }
     return NextResponse.json({ error: "Failed to create device" }, { status: 500 });
@@ -37,7 +64,20 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, name, groupId } = body;
+    const { 
+      id, 
+      name, 
+      groupId,
+      ipAddress,
+      macAddress,
+      broadcast,
+      wolEnabled,
+      wowlanEnabled,
+      wolPort,
+      ipControlEnabled,
+      ipControlPin,
+      ipControlPort
+    } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Missing device id" }, { status: 400 });
@@ -48,11 +88,20 @@ export async function PATCH(req: NextRequest) {
       data: { 
         ...(name && { name }),
         groupId: groupId === null ? null : groupId || undefined,
+        ipAddress: ipAddress === undefined ? undefined : ipAddress || null,
+        macAddress: macAddress === undefined ? undefined : macAddress || null,
+        broadcast: broadcast === undefined ? undefined : broadcast || null,
+        wolEnabled: wolEnabled === undefined ? undefined : wolEnabled,
+        wowlanEnabled: wowlanEnabled === undefined ? undefined : wowlanEnabled,
+        wolPort: wolPort === undefined ? undefined : wolPort,
+        ipControlEnabled: ipControlEnabled === undefined ? undefined : ipControlEnabled,
+        ipControlPin: ipControlPin === undefined ? undefined : (ipControlPin || null),
+        ipControlPort: ipControlPort === undefined ? undefined : ipControlPort
       },
     });
 
     return NextResponse.json(device);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to update device" }, { status: 500 });
   }
 }
@@ -68,7 +117,7 @@ export async function DELETE(req: NextRequest) {
     await prisma.device.delete({ where: { id } });
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Failed to delete device" }, { status: 500 });
   }
 }
